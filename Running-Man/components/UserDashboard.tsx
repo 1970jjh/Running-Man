@@ -14,6 +14,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
   const [activeTab, setActiveTab] = useState<'info' | 'invest' | 'portfolio'>('info');
   const [showConfirmPopup, setShowConfirmPopup] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
+  const [viewingCard, setViewingCard] = useState<string | null>(null);
 
   // 총 자산 계산
   const totalAssets = useMemo(() => {
@@ -191,7 +192,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
                 >
                   전체
                 </button>
-                {[0, 1, 2, 3].map(cat => (
+                {[0, 1, 2, 3, 4].map(cat => (
                   <button
                     key={cat}
                     onClick={() => setSelectedCategory(cat)}
@@ -230,7 +231,13 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
                     return (
                       <div
                         key={card.id}
-                        onClick={() => !isUnlocked && setShowConfirmPopup(card.id)}
+                        onClick={() => {
+                          if (isUnlocked) {
+                            setViewingCard(card.id);
+                          } else {
+                            setShowConfirmPopup(card.id);
+                          }
+                        }}
                         className={`aspect-[3/4] rounded-2xl overflow-hidden cursor-pointer transition-all transform hover:scale-105 active:scale-95 ${
                           isUnlocked
                             ? 'bg-gradient-to-br from-emerald-500/20 to-teal-500/20 border-2 border-emerald-500/50'
@@ -257,7 +264,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
                           {isUnlocked && (
                             <div className="mt-auto">
                               <p className="text-[9px] text-emerald-300/80 text-center leading-tight">
-                                정보 열람 가능
+                                탭하여 열람
                               </p>
                             </div>
                           )}
@@ -464,6 +471,74 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
                 className="w-full text-slate-500 hover:text-white text-sm py-3 font-semibold transition-colors"
               >
                 취소
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 정보 카드 이미지 뷰어 */}
+      {viewingCard && (
+        <div
+          className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={() => setViewingCard(null)}
+        >
+          <div className="relative max-w-2xl w-full max-h-[90vh] flex flex-col items-center">
+            {/* 닫기 버튼 */}
+            <button
+              onClick={() => setViewingCard(null)}
+              className="absolute top-2 right-2 z-10 w-10 h-10 rounded-full bg-slate-800/80 border border-slate-600/50 flex items-center justify-center text-white hover:bg-slate-700 transition-colors"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/>
+              </svg>
+            </button>
+
+            {/* 카드 정보 헤더 */}
+            <div className="mb-4 text-center">
+              <span className="bg-indigo-500/20 text-indigo-300 px-4 py-2 rounded-full text-sm font-bold border border-indigo-500/30">
+                {viewingCard} - {INFO_CARDS.find(c => c.id === viewingCard)?.stockId}사 정보
+              </span>
+            </div>
+
+            {/* 이미지 또는 외부 링크 안내 */}
+            <div
+              className="iso-card bg-gradient-to-br from-slate-800 to-slate-900 p-6 rounded-3xl w-full border border-slate-700/50 text-center"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="mb-6">
+                <div className="w-20 h-20 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-teal-500/20 flex items-center justify-center border-2 border-emerald-500/50">
+                  <span className="text-4xl font-black text-emerald-400">
+                    {INFO_CARDS.find(c => c.id === viewingCard)?.stockId}
+                  </span>
+                </div>
+                <h4 className="text-xl font-black text-white mb-2">
+                  {viewingCard} 정보 카드
+                </h4>
+                <p className="text-sm text-slate-400">
+                  아래 버튼을 클릭하여 정보를 확인하세요
+                </p>
+              </div>
+
+              <a
+                href={INFO_CARDS.find(c => c.id === viewingCard)?.imageUrl || '#'}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn-3d inline-block w-full bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold py-4 rounded-xl hover:from-emerald-500 hover:to-teal-500 transition-all"
+              >
+                <span className="flex items-center justify-center gap-2">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                  </svg>
+                  정보 카드 이미지 열기
+                </span>
+              </a>
+
+              <button
+                onClick={() => setViewingCard(null)}
+                className="w-full text-slate-500 hover:text-white text-sm py-3 mt-3 font-semibold transition-colors"
+              >
+                닫기
               </button>
             </div>
           </div>

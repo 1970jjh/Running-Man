@@ -34,6 +34,7 @@ export interface InfoCard {
   categoryIndex: number; // 0~4 (정보 카테고리)
   stockIndex: number; // 1~19 (종목 번호)
   stockId: string; // A~S
+  imageUrl: string; // 정보 카드 이미지 URL
   isRevealed: boolean;
 }
 
