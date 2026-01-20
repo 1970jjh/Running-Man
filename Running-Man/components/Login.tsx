@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Role, Room } from '../types';
 import { BACKGROUND_IMAGE_URL } from '../constants';
-import { subscribeToRooms } from '../firebase';
+import { subscribeToRooms, isFirebaseReady, getFirebaseError } from '../firebase';
 
 interface LoginProps {
   onLogin: (role: Role, data?: { name: string; teamNumber: number; roomId?: string; password?: string }) => void;
@@ -18,13 +18,43 @@ const Login: React.FC<LoginProps> = ({ onLogin, onAdminAccess }) => {
   const [userName, setUserName] = useState('');
   const [teamNum, setTeamNum] = useState(1);
   const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [firebaseConnected, setFirebaseConnected] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // 방 목록 실시간 구독
+  // Firebase 연결 상태 확인 및 방 목록 구독
   useEffect(() => {
-    const unsubscribe = subscribeToRooms((roomList) => {
-      setRooms(roomList);
-    });
+    // Firebase 연결 상태 확인
+    const checkFirebase = () => {
+      const ready = isFirebaseReady();
+      setFirebaseConnected(ready);
+
+      if (!ready) {
+        const error = getFirebaseError();
+        setErrorMessage(error || 'Firebase 연결에 실패했습니다.');
+        setLoading(false);
+        return false;
+      }
+      return true;
+    };
+
+    if (!checkFirebase()) {
+      return;
+    }
+
+    // 방 목록 실시간 구독
+    const unsubscribe = subscribeToRooms(
+      (roomList) => {
+        setRooms(roomList);
+        setLoading(false);
+        setErrorMessage(null);
+      },
+      (error) => {
+        setErrorMessage(`방 목록을 불러올 수 없습니다: ${error.message}`);
+        setLoading(false);
+      }
+    );
+
     return () => unsubscribe();
   }, []);
 
@@ -89,12 +119,33 @@ const Login: React.FC<LoginProps> = ({ onLogin, onAdminAccess }) => {
           </p>
         </div>
 
+        {/* Firebase 연결 오류 표시 */}
+        {errorMessage && (
+          <div className="mb-6 p-4 rounded-xl bg-rose-500/20 border border-rose-500/50">
+            <p className="text-rose-300 text-sm font-medium">{errorMessage}</p>
+            <p className="text-rose-400/70 text-xs mt-2">관리자에게 문의하거나 Firebase 설정을 확인해주세요.</p>
+          </div>
+        )}
+
+        {/* Firebase 연결 중 표시 */}
+        {loading && (
+          <div className="py-8">
+            <div className="w-12 h-12 mx-auto mb-4 rounded-full border-4 border-indigo-500/30 border-t-indigo-500 animate-spin"></div>
+            <p className="text-slate-400 text-sm">서버 연결 중...</p>
+          </div>
+        )}
+
         {/* 모드 선택 단계 */}
-        {step === 'select-mode' && (
+        {!loading && step === 'select-mode' && (
           <div className="space-y-5">
             <button
               onClick={() => setStep('select-room')}
-              className="btn-3d w-full bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600 hover:from-indigo-500 hover:via-purple-500 hover:to-indigo-500 text-white font-bold py-4 rounded-2xl transition-all text-lg tracking-wide"
+              disabled={!firebaseConnected}
+              className={`w-full font-bold py-4 rounded-2xl transition-all text-lg tracking-wide ${
+                firebaseConnected
+                  ? 'btn-3d bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600 hover:from-indigo-500 hover:via-purple-500 hover:to-indigo-500 text-white'
+                  : 'bg-slate-700 text-slate-500 cursor-not-allowed'
+              }`}
             >
               교육생 입장
             </button>
@@ -109,8 +160,8 @@ const Login: React.FC<LoginProps> = ({ onLogin, onAdminAccess }) => {
             <div className="mt-8 pt-6 border-t border-slate-700/50">
               <div className="flex items-center justify-center gap-4 text-slate-500 text-xs">
                 <span className="flex items-center gap-1">
-                  <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
-                  실시간 게임
+                  <span className={`w-2 h-2 rounded-full ${firebaseConnected ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`}></span>
+                  {firebaseConnected ? '서버 연결됨' : '서버 연결 실패'}
                 </span>
                 <span>|</span>
                 <span className="font-display">19개 종목</span>
@@ -122,7 +173,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, onAdminAccess }) => {
         )}
 
         {/* 방 선택 단계 */}
-        {step === 'select-room' && (
+        {!loading && step === 'select-room' && (
           <div className="space-y-5">
             <h3 className="text-lg font-bold text-white mb-4">참여할 방을 선택하세요</h3>
 
@@ -171,7 +222,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, onAdminAccess }) => {
         )}
 
         {/* 팀 선택 단계 */}
-        {step === 'select-team' && selectedRoom && (
+        {!loading && step === 'select-team' && selectedRoom && (
           <div className="space-y-5">
             <div className="p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/30 mb-4">
               <p className="text-xs text-indigo-300 font-semibold">선택한 방</p>

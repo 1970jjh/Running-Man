@@ -5,7 +5,7 @@ import { STOCK_DATA, ADMIN_PASSWORD } from './constants';
 import AdminDashboard from './components/AdminDashboard';
 import UserDashboard from './components/UserDashboard';
 import Login from './components/Login';
-import { subscribeToRoom, updateRoomGameState, joinTeam } from './firebase';
+import { subscribeToRoom, updateRoomGameState, joinTeam, isFirebaseReady, getRoom } from './firebase';
 
 type AppView = 'login' | 'admin' | 'user';
 
@@ -14,16 +14,29 @@ const App: React.FC = () => {
   const [currentRoomId, setCurrentRoomId] = useState<string | null>(null);
   const [currentTeamId, setCurrentTeamId] = useState<string | null>(null);
   const [gameState, setGameState] = useState<GameState | null>(null);
+  const [isJoining, setIsJoining] = useState(false);
+  const [joinError, setJoinError] = useState<string | null>(null);
 
   // 방 구독 (사용자가 방에 입장했을 때)
   useEffect(() => {
     if (!currentRoomId || view === 'admin') return;
 
-    const unsubscribe = subscribeToRoom(currentRoomId, (room) => {
-      if (room) {
-        setGameState(room.gameState);
+    const unsubscribe = subscribeToRoom(
+      currentRoomId,
+      (room) => {
+        if (room) {
+          setGameState(room.gameState);
+          setJoinError(null);
+        } else {
+          // 방이 삭제되었거나 찾을 수 없음
+          setJoinError('방을 찾을 수 없습니다. 방이 삭제되었을 수 있습니다.');
+        }
+      },
+      (error) => {
+        console.error('방 구독 오류:', error);
+        setJoinError(`서버 연결 오류: ${error.message}`);
       }
-    });
+    );
 
     return () => unsubscribe();
   }, [currentRoomId, view]);
@@ -43,15 +56,45 @@ const App: React.FC = () => {
     data?: { name: string; teamNumber: number; roomId?: string; password?: string }
   ) => {
     if (selectedRole === Role.USER && data?.roomId) {
-      // 사용자: 방에 입장
-      const success = await joinTeam(data.roomId, data.teamNumber, data.name);
+      // Firebase 연결 확인
+      if (!isFirebaseReady()) {
+        alert('서버에 연결되지 않았습니다. 잠시 후 다시 시도해주세요.');
+        return;
+      }
 
-      if (success) {
-        setCurrentRoomId(data.roomId);
-        setCurrentTeamId(`team-${data.teamNumber}`);
-        setView('user');
-      } else {
-        alert('방에 입장할 수 없습니다. 다시 시도해주세요.');
+      setIsJoining(true);
+      setJoinError(null);
+
+      try {
+        // 먼저 방이 존재하는지 확인
+        const room = await getRoom(data.roomId);
+        if (!room) {
+          alert('방을 찾을 수 없습니다. 방이 삭제되었거나 유효하지 않습니다.');
+          setIsJoining(false);
+          return;
+        }
+
+        if (!room.isActive) {
+          alert('이 방은 더 이상 활성화되지 않았습니다.');
+          setIsJoining(false);
+          return;
+        }
+
+        // 팀 참가 시도
+        const success = await joinTeam(data.roomId, data.teamNumber, data.name);
+
+        if (success) {
+          setCurrentRoomId(data.roomId);
+          setCurrentTeamId(`team-${data.teamNumber}`);
+          setView('user');
+        } else {
+          alert('방에 입장할 수 없습니다.\n\n가능한 원인:\n- 서버 연결 문제\n- 방이 삭제됨\n- 팀이 존재하지 않음\n\n다시 시도해주세요.');
+        }
+      } catch (error: any) {
+        console.error('입장 오류:', error);
+        alert(`입장 중 오류가 발생했습니다: ${error?.message || '알 수 없는 오류'}`);
+      } finally {
+        setIsJoining(false);
       }
     }
   };
@@ -67,6 +110,7 @@ const App: React.FC = () => {
     setCurrentRoomId(null);
     setCurrentTeamId(null);
     setGameState(null);
+    setJoinError(null);
   };
 
   const myTeam = gameState?.teams.find(t => t.id === currentTeamId);
@@ -94,16 +138,42 @@ const App: React.FC = () => {
 
       {view === 'user' && (!gameState || !myTeam) && (
         <div className="flex-1 flex items-center justify-center iso-grid">
-          <div className="iso-card bg-gradient-to-br from-slate-800/90 to-slate-900/95 p-10 rounded-3xl text-center border border-slate-700/50">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-full border-4 border-indigo-500/30 border-t-indigo-500 animate-spin"></div>
-            <p className="text-xl font-bold text-white">게임 로딩 중...</p>
-            <p className="text-sm text-slate-400 mt-2">잠시만 기다려주세요</p>
-            <button
-              onClick={handleLogout}
-              className="mt-6 text-slate-500 hover:text-white text-sm transition-colors"
-            >
-              돌아가기
-            </button>
+          <div className="iso-card bg-gradient-to-br from-slate-800/90 to-slate-900/95 p-10 rounded-3xl text-center border border-slate-700/50 max-w-md">
+            {isJoining ? (
+              <>
+                <div className="w-16 h-16 mx-auto mb-4 rounded-full border-4 border-indigo-500/30 border-t-indigo-500 animate-spin"></div>
+                <p className="text-xl font-bold text-white">방에 입장 중...</p>
+                <p className="text-sm text-slate-400 mt-2">잠시만 기다려주세요</p>
+              </>
+            ) : joinError ? (
+              <>
+                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-rose-500/20 flex items-center justify-center">
+                  <svg className="w-8 h-8 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                  </svg>
+                </div>
+                <p className="text-xl font-bold text-white mb-2">연결 오류</p>
+                <p className="text-sm text-rose-300 mb-4">{joinError}</p>
+                <button
+                  onClick={handleLogout}
+                  className="mt-4 px-6 py-3 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-500 transition-colors"
+                >
+                  다시 시도하기
+                </button>
+              </>
+            ) : (
+              <>
+                <div className="w-16 h-16 mx-auto mb-4 rounded-full border-4 border-indigo-500/30 border-t-indigo-500 animate-spin"></div>
+                <p className="text-xl font-bold text-white">게임 로딩 중...</p>
+                <p className="text-sm text-slate-400 mt-2">잠시만 기다려주세요</p>
+                <button
+                  onClick={handleLogout}
+                  className="mt-6 text-slate-500 hover:text-white text-sm transition-colors"
+                >
+                  돌아가기
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}
