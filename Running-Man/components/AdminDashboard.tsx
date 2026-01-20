@@ -8,7 +8,9 @@ import {
   subscribeToRoom,
   updateRoomGameState,
   deleteRoom,
-  createDefaultGameState
+  createDefaultGameState,
+  isFirebaseReady,
+  getFirebaseError
 } from '../firebase';
 
 interface AdminDashboardProps {
@@ -22,6 +24,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
   const [gameState, setGameState] = useState<GameState | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isCreating, setIsCreating] = useState(false);
 
   // 방 생성 폼
   const [setupRoomName, setSetupRoomName] = useState('금융사관학교 1기');
@@ -34,13 +39,31 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   const [showResultModal, setShowResultModal] = useState(false);
   const [resultStep, setResultStep] = useState<'stocks' | 'teams'>('stocks');
 
+  // Firebase 연결 상태 확인
+  const firebaseConnected = isFirebaseReady();
+
   // 방 목록 실시간 구독
   useEffect(() => {
-    const unsubscribe = subscribeToRooms((roomList) => {
-      setRooms(roomList);
-    });
+    if (!firebaseConnected) {
+      const error = getFirebaseError();
+      setErrorMessage(error || 'Firebase 연결에 실패했습니다.');
+      setLoading(false);
+      return;
+    }
+
+    const unsubscribe = subscribeToRooms(
+      (roomList) => {
+        setRooms(roomList);
+        setLoading(false);
+        setErrorMessage(null);
+      },
+      (error) => {
+        setErrorMessage(`방 목록을 불러올 수 없습니다: ${error.message}`);
+        setLoading(false);
+      }
+    );
     return () => unsubscribe();
-  }, []);
+  }, [firebaseConnected]);
 
   // 선택된 방 실시간 구독
   useEffect(() => {
@@ -68,14 +91,28 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
 
   // 새 방 생성
   const handleCreateRoom = async () => {
+    if (!firebaseConnected) {
+      alert('Firebase에 연결되지 않았습니다. 설정을 확인해주세요.');
+      return;
+    }
+
+    setIsCreating(true);
+    setErrorMessage(null);
+
     try {
       const newRoom = await createRoom(setupRoomName, setupPassword, setupTeams, setupMaxRounds);
       setSelectedRoom(newRoom);
       setGameState(newRoom.gameState);
       setView('room-manage');
-    } catch (error) {
+    } catch (error: any) {
       console.error('방 생성 오류:', error);
-      alert('방 생성에 실패했습니다. Firebase 설정을 확인해주세요.');
+      const errorMsg = error?.message || '알 수 없는 오류가 발생했습니다.';
+      setErrorMessage(`방 생성 실패: ${errorMsg}`);
+      alert(`방 생성에 실패했습니다.\n\n오류: ${errorMsg}\n\nFirebase 설정을 확인해주세요.`);
+      // 에러 발생 시 방 목록 화면으로 돌아가기
+      setView('room-list');
+    } finally {
+      setIsCreating(false);
     }
   };
 
@@ -291,23 +328,53 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               <h1 className="text-3xl font-black text-white">관리자 대시보드</h1>
               <p className="text-slate-400 text-sm mt-1">방을 생성하고 관리하세요</p>
             </div>
-            <button
-              onClick={onLogout}
-              className="px-4 py-2 rounded-xl bg-slate-700/50 text-slate-400 hover:text-white transition-colors"
-            >
-              로그아웃
-            </button>
+            <div className="flex items-center gap-4">
+              <span className="flex items-center gap-2 text-sm">
+                <span className={`w-2 h-2 rounded-full ${firebaseConnected ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`}></span>
+                <span className={firebaseConnected ? 'text-emerald-400' : 'text-rose-400'}>
+                  {firebaseConnected ? '서버 연결됨' : '서버 연결 실패'}
+                </span>
+              </span>
+              <button
+                onClick={onLogout}
+                className="px-4 py-2 rounded-xl bg-slate-700/50 text-slate-400 hover:text-white transition-colors"
+              >
+                로그아웃
+              </button>
+            </div>
           </div>
+
+          {/* Firebase 오류 메시지 */}
+          {errorMessage && (
+            <div className="mb-6 p-4 rounded-xl bg-rose-500/20 border border-rose-500/50">
+              <p className="text-rose-300 text-sm font-medium">{errorMessage}</p>
+              <p className="text-rose-400/70 text-xs mt-2">Firebase Realtime Database 설정을 확인해주세요.</p>
+            </div>
+          )}
 
           {/* 새 방 만들기 버튼 */}
           <button
             onClick={() => setView('room-setup')}
-            className="btn-3d w-full bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white font-bold py-5 rounded-2xl text-xl mb-8"
+            disabled={!firebaseConnected}
+            className={`w-full font-bold py-5 rounded-2xl text-xl mb-8 ${
+              firebaseConnected
+                ? 'btn-3d bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white'
+                : 'bg-slate-700 text-slate-500 cursor-not-allowed'
+            }`}
           >
             ➕ 새 방 만들기
           </button>
 
+          {/* 로딩 상태 */}
+          {loading && (
+            <div className="iso-card bg-slate-800/50 p-8 rounded-2xl text-center border border-slate-700/50">
+              <div className="w-12 h-12 mx-auto mb-4 rounded-full border-4 border-indigo-500/30 border-t-indigo-500 animate-spin"></div>
+              <p className="text-slate-400">방 목록을 불러오는 중...</p>
+            </div>
+          )}
+
           {/* 방 목록 */}
+          {!loading && (
           <div className="space-y-4">
             <h2 className="text-lg font-bold text-white">내 방 목록</h2>
 
@@ -363,6 +430,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               ))
             )}
           </div>
+          )}
         </div>
       </div>
     );
@@ -445,15 +513,28 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
             <div className="flex gap-4">
               <button
                 onClick={() => setView('room-list')}
-                className="flex-1 py-4 rounded-2xl bg-slate-700/50 text-slate-300 font-bold hover:bg-slate-600/50 transition-colors"
+                disabled={isCreating}
+                className="flex-1 py-4 rounded-2xl bg-slate-700/50 text-slate-300 font-bold hover:bg-slate-600/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 취소
               </button>
               <button
                 onClick={handleCreateRoom}
-                className="flex-1 btn-3d bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white font-bold py-4 rounded-2xl"
+                disabled={isCreating || !firebaseConnected}
+                className={`flex-1 font-bold py-4 rounded-2xl transition-all ${
+                  isCreating || !firebaseConnected
+                    ? 'bg-slate-600 text-slate-400 cursor-not-allowed'
+                    : 'btn-3d bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white'
+                }`}
               >
-                방 생성
+                {isCreating ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                    생성 중...
+                  </span>
+                ) : (
+                  '방 생성'
+                )}
               </button>
             </div>
           </div>
@@ -482,7 +563,25 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
 
   // ============ 방 관리 화면 ============
   if (!gameState || !selectedRoom) {
-    return <div className="min-h-screen flex items-center justify-center text-white">로딩 중...</div>;
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6 iso-grid">
+        <div className="iso-card bg-gradient-to-br from-slate-800/90 to-slate-900/95 p-10 rounded-3xl text-center border border-slate-700/50">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-full border-4 border-indigo-500/30 border-t-indigo-500 animate-spin"></div>
+          <p className="text-xl font-bold text-white mb-2">게임 데이터 로딩 중...</p>
+          <p className="text-sm text-slate-400 mb-6">잠시만 기다려주세요</p>
+          <button
+            onClick={() => {
+              setSelectedRoom(null);
+              setGameState(null);
+              setView('room-list');
+            }}
+            className="text-slate-500 hover:text-white text-sm transition-colors"
+          >
+            ← 방 목록으로 돌아가기
+          </button>
+        </div>
+      </div>
+    );
   }
 
   // 게임 종료
