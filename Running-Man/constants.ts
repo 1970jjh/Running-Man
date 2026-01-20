@@ -1,10 +1,17 @@
 
-import { GameStatus, Stock } from './types';
+import { Stock, InfoCard } from './types';
 
 export const ADMIN_PASSWORD = '6749467';
-export const INITIAL_SEED_MONEY = 10000000;
+export const INITIAL_SEED_MONEY = 10000000; // 1000만원
+export const MAX_INVESTMENT_RATIO = 0.3; // 한 종목당 30%까지
+export const MAX_PURCHASED_INFO_PER_ROUND = 10; // 라운드당 최대 10개 구매
 
-// 그림2 데이터를 기반으로 한 정확한 주가 정보
+// 라운드별 정보 구매 가격 (만원 단위)
+export const getInfoPrice = (round: number): number => {
+  return round * 100000; // 1R: 10만원, 2R: 20만원, 3R: 30만원, 4R: 40만원
+};
+
+// 주가 데이터 (그림2 기반)
 export const STOCK_DATA: Stock[] = [
   { id: 'A', name: 'A사', prices: [10000, 30000, 154000, 170000, 120000] },
   { id: 'B', name: 'B사', prices: [7200, 7800, 8500, 6800, 4300] },
@@ -27,14 +34,38 @@ export const STOCK_DATA: Stock[] = [
   { id: 'S', name: 'S사', prices: [220000, 130000, 180000, 290000, 690000] },
 ];
 
-// 총 76개의 정보 카드 생성 (0-1 ~ 4-19 형식)
-export const INFO_CARDS = Array.from({ length: 5 }).flatMap((_, r) => 
-  Array.from({ length: 19 }).map((_, s) => ({
-    id: `${r}-${s+1}`,
-    round: r,
-    stockId: String.fromCharCode(65 + s),
-    title: `${String.fromCharCode(65 + s)}사 관련 특급 정보`,
-    content: `${r}라운드 핵심 지표: 해당 시점의 시장 점유율 및 내부 감사 결과 반영 데이터입니다.`,
-    isRevealed: false
-  }))
-);
+// 정보 카드 생성 (0-1 ~ 4-19, 총 76개)
+// 카테고리 0~3 각 19개씩 = 76개
+export const generateInfoCards = (): InfoCard[] => {
+  const cards: InfoCard[] = [];
+  for (let category = 0; category <= 3; category++) {
+    for (let stockIdx = 1; stockIdx <= 19; stockIdx++) {
+      cards.push({
+        id: `${category}-${stockIdx}`,
+        categoryIndex: category,
+        stockIndex: stockIdx,
+        stockId: String.fromCharCode(64 + stockIdx), // A=1, B=2, ...
+        isRevealed: false
+      });
+    }
+  }
+  return cards;
+};
+
+export const INFO_CARDS = generateInfoCards();
+
+// 라운드별 상태 배열
+export const ROUND_STATUSES = ['ROUND_1', 'ROUND_2', 'ROUND_3', 'ROUND_4'];
+
+// 게임 단계 순서
+export const STEP_ORDER = ['MINI_GAME', 'INFO_PURCHASE', 'INFO_NEGOTIATION', 'INVESTMENT', 'RESULT'];
+
+// 단계별 한글 이름
+export const STEP_NAMES: { [key: string]: string } = {
+  WAITING: '대기중',
+  MINI_GAME: '미니게임',
+  INFO_PURCHASE: '정보구매',
+  INFO_NEGOTIATION: '정보협상',
+  INVESTMENT: '투자',
+  RESULT: '결과발표'
+};

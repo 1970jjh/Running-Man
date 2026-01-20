@@ -1,0 +1,246 @@
+/* 기본 스타일 */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Pretendard Variable', 'Pretendard', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%);
+  min-height: 100vh;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+/* 숫자/영문에 Outfit 폰트 적용 */
+.font-display {
+  font-family: 'Outfit', 'Pretendard Variable', sans-serif;
+}
+
+/* 스크롤바 스타일 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(30, 41, 59, 0.5);
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #6366f1, #8b5cf6);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #818cf8, #a78bfa);
+}
+
+/* 아이소메트릭 3D 카드 스타일 */
+.iso-card {
+  transform: perspective(1000px) rotateX(2deg);
+  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  box-shadow:
+    0 20px 40px rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(255, 255, 255, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.iso-card:hover {
+  transform: perspective(1000px) rotateX(0deg) translateY(-8px);
+  box-shadow:
+    0 30px 60px rgba(99, 102, 241, 0.3),
+    0 0 0 1px rgba(255, 255, 255, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+/* 3D 버튼 스타일 */
+.btn-3d {
+  position: relative;
+  transform: translateY(0);
+  transition: all 0.15s ease;
+  box-shadow:
+    0 6px 0 rgba(0, 0, 0, 0.2),
+    0 8px 20px rgba(0, 0, 0, 0.3);
+}
+
+.btn-3d:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 8px 0 rgba(0, 0, 0, 0.2),
+    0 12px 30px rgba(0, 0, 0, 0.4);
+}
+
+.btn-3d:active {
+  transform: translateY(4px);
+  box-shadow:
+    0 2px 0 rgba(0, 0, 0, 0.2),
+    0 4px 10px rgba(0, 0, 0, 0.3);
+}
+
+/* 글로우 효과 */
+.glow-primary {
+  box-shadow: 0 0 30px rgba(99, 102, 241, 0.5), 0 0 60px rgba(99, 102, 241, 0.3);
+}
+
+.glow-accent {
+  box-shadow: 0 0 30px rgba(16, 185, 129, 0.5), 0 0 60px rgba(16, 185, 129, 0.3);
+}
+
+.glow-warning {
+  box-shadow: 0 0 30px rgba(245, 158, 11, 0.5), 0 0 60px rgba(245, 158, 11, 0.3);
+}
+
+/* 그리드 배경 패턴 */
+.grid-bg {
+  background-image:
+    linear-gradient(rgba(99, 102, 241, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(99, 102, 241, 0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+}
+
+/* 아이소메트릭 그리드 */
+.iso-grid {
+  background-image:
+    linear-gradient(30deg, rgba(99, 102, 241, 0.05) 12%, transparent 12.5%, transparent 87%, rgba(99, 102, 241, 0.05) 87.5%, rgba(99, 102, 241, 0.05)),
+    linear-gradient(150deg, rgba(99, 102, 241, 0.05) 12%, transparent 12.5%, transparent 87%, rgba(99, 102, 241, 0.05) 87.5%, rgba(99, 102, 241, 0.05)),
+    linear-gradient(30deg, rgba(99, 102, 241, 0.05) 12%, transparent 12.5%, transparent 87%, rgba(99, 102, 241, 0.05) 87.5%, rgba(99, 102, 241, 0.05)),
+    linear-gradient(150deg, rgba(99, 102, 241, 0.05) 12%, transparent 12.5%, transparent 87%, rgba(99, 102, 241, 0.05) 87.5%, rgba(99, 102, 241, 0.05));
+  background-size: 80px 140px;
+  background-position: 0 0, 0 0, 40px 70px, 40px 70px;
+}
+
+/* 플로팅 애니메이션 */
+@keyframes float {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-10px) rotate(1deg); }
+}
+
+.animate-float {
+  animation: float 4s ease-in-out infinite;
+}
+
+/* 펄스 글로우 애니메이션 */
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 20px rgba(99, 102, 241, 0.4); }
+  50% { box-shadow: 0 0 40px rgba(99, 102, 241, 0.8), 0 0 60px rgba(139, 92, 246, 0.4); }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* 스캔라인 효과 */
+@keyframes scanline {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100%); }
+}
+
+.scanline::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, transparent, rgba(99, 102, 241, 0.5), transparent);
+  animation: scanline 3s linear infinite;
+}
+
+/* 카운터/숫자 스타일 */
+.counter-value {
+  font-family: 'Outfit', monospace;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+/* 주식 카드 특별 스타일 */
+.stock-card {
+  background: linear-gradient(145deg, rgba(30, 41, 59, 0.9), rgba(15, 23, 42, 0.95));
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  backdrop-filter: blur(10px);
+}
+
+.stock-card:hover {
+  border-color: rgba(99, 102, 241, 0.5);
+  background: linear-gradient(145deg, rgba(49, 46, 129, 0.3), rgba(30, 41, 59, 0.95));
+}
+
+/* 정보 카드 뒤집기 효과 */
+.info-card {
+  perspective: 1000px;
+}
+
+.info-card-inner {
+  transition: transform 0.6s;
+  transform-style: preserve-3d;
+}
+
+.info-card.flipped .info-card-inner {
+  transform: rotateY(180deg);
+}
+
+.info-card-front, .info-card-back {
+  backface-visibility: hidden;
+}
+
+.info-card-back {
+  transform: rotateY(180deg);
+}
+
+/* 타이머 프로그레스 바 */
+.timer-progress {
+  background: linear-gradient(90deg, #10b981, #34d399, #6ee7b7);
+  transition: width 1s linear;
+}
+
+.timer-progress.warning {
+  background: linear-gradient(90deg, #f59e0b, #fbbf24, #fcd34d);
+}
+
+.timer-progress.danger {
+  background: linear-gradient(90deg, #ef4444, #f87171, #fca5a5);
+}
+
+/* 결과 막대그래프 애니메이션 */
+@keyframes grow-bar {
+  from { height: 0; }
+  to { height: var(--bar-height); }
+}
+
+.result-bar {
+  animation: grow-bar 1s ease-out forwards;
+}
+
+/* 모바일 최적화 */
+@media (max-width: 768px) {
+  .iso-card {
+    transform: none;
+  }
+
+  .iso-card:hover {
+    transform: translateY(-4px);
+  }
+}
+
+/* 선택 불가능하게 */
+.no-select {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* 숫자 입력 필드 스피너 숨기기 */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+}
