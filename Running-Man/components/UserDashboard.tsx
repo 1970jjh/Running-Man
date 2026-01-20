@@ -1,8 +1,8 @@
 
 import React, { useState, useMemo } from 'react';
-import { GameState, Team, GameStatus, GameStep, Stock } from '../types';
+import { GameState, Team, GameStatus, GameStep } from '../types';
 import InvestmentModule from './InvestmentModule';
-import { INFO_CARDS } from '../constants';
+import { INFO_CARDS, getInfoPrice, MAX_PURCHASED_INFO_PER_ROUND, STEP_NAMES, INITIAL_SEED_MONEY } from '../constants';
 
 interface UserDashboardProps {
   gameState: GameState;
@@ -11,26 +11,35 @@ interface UserDashboardProps {
 }
 
 const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGameState }) => {
-  const [activeTab, setActiveTab] = useState<'info' | 'invest' | 'status'>('info');
+  const [activeTab, setActiveTab] = useState<'info' | 'invest' | 'portfolio'>('info');
   const [showConfirmPopup, setShowConfirmPopup] = useState<string | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
 
+  // 총 자산 계산
   const totalAssets = useMemo(() => {
-    const currentRoundIdx = [GameStatus.IDLE, GameStatus.SETUP, GameStatus.ROUND_1, GameStatus.ROUND_2, GameStatus.ROUND_3, GameStatus.ROUND_4].indexOf(gameState.currentStatus);
-    // Explicitly typing acc and the destructured [id, qty] as [string, number] to prevent "not a number" arithmetic errors in TS
-    const stockValue = Object.entries(myTeam.portfolio).reduce((acc: number, [id, qty]: [string, number]) => {
+    const stockValue = Object.entries(myTeam.portfolio).reduce((acc, [id, qty]) => {
       const stock = gameState.stocks.find(s => s.id === id);
-      const price = stock?.prices[currentRoundIdx] || 0;
+      const price = stock?.prices[gameState.currentRound] || 0;
       return acc + (qty * price);
     }, 0);
     return myTeam.currentCash + stockValue;
-  }, [myTeam, gameState.stocks, gameState.currentStatus]);
+  }, [myTeam, gameState.stocks, gameState.currentRound]);
 
+  // 현재 라운드 구매 개수
+  const currentRoundPurchased = myTeam.purchasedInfoCountPerRound[gameState.currentRound] || 0;
+
+  // 정보 구매 (현금)
   const purchaseInfo = (cardId: string) => {
-    const roundNumber = parseInt(gameState.currentStatus.split('_')[1] || '1');
-    const price = roundNumber * 100000;
+    const price = getInfoPrice(gameState.currentRound);
 
-    if (myTeam.currentCash < price) return alert('잔액이 부족합니다.');
-    if (myTeam.purchasedInfoCount >= 10) return alert('라운드당 최대 10개까지 구매 가능합니다.');
+    if (myTeam.currentCash < price) {
+      alert('잔액이 부족합니다.');
+      return;
+    }
+    if (currentRoundPurchased >= MAX_PURCHASED_INFO_PER_ROUND) {
+      alert(`라운드당 최대 ${MAX_PURCHASED_INFO_PER_ROUND}개까지 구매 가능합니다.`);
+      return;
+    }
 
     setGameState(prev => ({
       ...prev,
@@ -38,14 +47,21 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
         ...t,
         currentCash: t.currentCash - price,
         unlockedCards: [...t.unlockedCards, cardId],
-        purchasedInfoCount: t.purchasedInfoCount + 1
+        purchasedInfoCountPerRound: {
+          ...t.purchasedInfoCountPerRound,
+          [gameState.currentRound]: (t.purchasedInfoCountPerRound[gameState.currentRound] || 0) + 1
+        }
       } : t)
     }));
     setShowConfirmPopup(null);
   };
 
+  // 무료권 사용
   const useFreeInfo = (cardId: string) => {
-    if (myTeam.grantedInfoCount <= 0) return alert('사용 가능한 무료 정보권이 없습니다.');
+    if (myTeam.grantedInfoCount <= 0) {
+      alert('사용 가능한 무료 정보권이 없습니다.');
+      return;
+    }
     setGameState(prev => ({
       ...prev,
       teams: prev.teams.map(t => t.id === myTeam.id ? {
@@ -57,134 +73,398 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
     setShowConfirmPopup(null);
   };
 
+  // 수익률 계산
+  const profitRate = useMemo(() => {
+    return ((totalAssets - INITIAL_SEED_MONEY) / INITIAL_SEED_MONEY) * 100;
+  }, [totalAssets]);
+
   return (
-    <div className="flex-1 flex flex-col h-screen overflow-hidden bg-slate-900 text-white font-sans">
-      {/* 상단 팀 스탯 바 */}
-      <header className="bg-white/10 backdrop-blur-md p-6 pt-10 border-b border-white/10 shadow-2xl">
-        <div className="flex justify-between items-center mb-4">
-          <div className="flex items-center gap-2">
-            <span className="w-3 h-3 bg-emerald-400 rounded-full animate-pulse"></span>
-            <h2 className="text-xl font-black tracking-tight">TEAM {myTeam.number}</h2>
+    <div className="min-h-screen flex flex-col iso-grid">
+      {/* 상단 헤더 */}
+      <header className="bg-gradient-to-r from-slate-800/95 to-slate-900/95 backdrop-blur-xl p-4 md:p-6 border-b border-slate-700/50 sticky top-0 z-40">
+        <div className="max-w-4xl mx-auto">
+          {/* 팀 정보 & 상태 */}
+          <div className="flex justify-between items-center mb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-black text-lg shadow-lg">
+                {myTeam.number}
+              </div>
+              <div>
+                <h2 className="text-xl font-black text-white">Team {myTeam.number}</h2>
+                <p className="text-xs text-slate-400">{myTeam.leaderName}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="bg-indigo-500/20 text-indigo-300 px-3 py-1 rounded-full text-xs font-bold border border-indigo-500/30">
+                R{gameState.currentRound}
+              </span>
+              <span className="bg-purple-500/20 text-purple-300 px-3 py-1 rounded-full text-xs font-bold border border-purple-500/30">
+                {STEP_NAMES[gameState.currentStep]}
+              </span>
+            </div>
           </div>
-          <span className="bg-blue-600 px-4 py-1 rounded-full text-[10px] font-black uppercase">
-            {gameState.currentStatus} | {gameState.currentStep}
-          </span>
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="bg-white/5 p-4 rounded-3xl border border-white/5">
-            <p className="text-[10px] text-white/40 font-black uppercase mb-1">Total Assets</p>
-            <p className="text-xl font-black text-blue-400">{totalAssets.toLocaleString()}₩</p>
+
+          {/* 자산 현황 */}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="p-3 rounded-xl bg-slate-700/30 border border-slate-600/30">
+              <p className="text-[10px] text-slate-400 uppercase font-bold mb-1">Total Assets</p>
+              <p className="text-lg font-black text-white font-display">{totalAssets.toLocaleString()}원</p>
+            </div>
+            <div className="p-3 rounded-xl bg-slate-700/30 border border-slate-600/30">
+              <p className="text-[10px] text-slate-400 uppercase font-bold mb-1">Cash</p>
+              <p className="text-lg font-black text-emerald-400 font-display">{myTeam.currentCash.toLocaleString()}원</p>
+            </div>
+            <div className="p-3 rounded-xl bg-slate-700/30 border border-slate-600/30">
+              <p className="text-[10px] text-slate-400 uppercase font-bold mb-1">Profit</p>
+              <p className={`text-lg font-black font-display ${profitRate >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                {profitRate >= 0 ? '+' : ''}{profitRate.toFixed(1)}%
+              </p>
+            </div>
           </div>
-          <div className="bg-white/5 p-4 rounded-3xl border border-white/5">
-            <p className="text-[10px] text-white/40 font-black uppercase mb-1">Cash Available</p>
-            <p className="text-xl font-black text-emerald-400">{myTeam.currentCash.toLocaleString()}₩</p>
-          </div>
+
+          {/* 타이머 (투자 단계일 때) */}
+          {gameState.currentStep === GameStep.INVESTMENT && (
+            <div className="mt-4">
+              <div className="flex justify-between items-center mb-2">
+                <span className="text-xs text-slate-400 font-bold">투자 시간</span>
+                <span className={`text-sm font-black font-display ${
+                  gameState.timerSeconds < 60 ? 'text-rose-400' :
+                  gameState.timerSeconds < 180 ? 'text-amber-400' : 'text-emerald-400'
+                }`}>
+                  {Math.floor(gameState.timerSeconds / 60)}:{(gameState.timerSeconds % 60).toString().padStart(2, '0')}
+                </span>
+              </div>
+              <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
+                <div
+                  className={`h-full transition-all duration-1000 ${
+                    gameState.timerSeconds < 60 ? 'bg-gradient-to-r from-rose-500 to-rose-400' :
+                    gameState.timerSeconds < 180 ? 'bg-gradient-to-r from-amber-500 to-amber-400' :
+                    'bg-gradient-to-r from-emerald-500 to-emerald-400'
+                  }`}
+                  style={{ width: `${(gameState.timerSeconds / (gameState.timerMaxSeconds || 300)) * 100}%` }}
+                />
+              </div>
+              {gameState.isInvestmentLocked && (
+                <p className="text-xs text-rose-400 mt-2 text-center font-bold">🔒 투자가 잠금되었습니다</p>
+              )}
+            </div>
+          )}
         </div>
       </header>
 
-      {/* 메인 컨텐츠 */}
-      <main className="flex-1 overflow-y-auto p-4 space-y-6 pb-28">
-        {activeTab === 'info' && (
-          <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
-             <div className="flex justify-between items-center">
-                <h3 className="text-lg font-black tracking-tighter border-l-4 border-blue-500 pl-3">정보 센터</h3>
-                <div className="text-[10px] font-bold text-white/50 bg-white/5 px-3 py-1 rounded-full">
-                  무료권: {myTeam.grantedInfoCount} | 유료: {myTeam.purchasedInfoCount}/10
+      {/* 메인 콘텐츠 */}
+      <main className="flex-1 p-4 pb-24 overflow-auto">
+        <div className="max-w-4xl mx-auto">
+          {/* 정보 센터 탭 */}
+          {activeTab === 'info' && (
+            <div className="space-y-6">
+              {/* 정보 구매권 현황 */}
+              <div className="iso-card bg-gradient-to-br from-slate-800/90 to-slate-900/95 rounded-2xl p-5 border border-slate-700/50">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-lg font-black text-white flex items-center gap-2">
+                    <span className="text-2xl">🎫</span>
+                    정보 구매권
+                  </h3>
+                  <div className="flex gap-3 text-sm">
+                    <span className="bg-indigo-500/20 text-indigo-300 px-3 py-1 rounded-lg font-bold border border-indigo-500/30">
+                      무료권: {myTeam.grantedInfoCount}개
+                    </span>
+                    <span className="bg-amber-500/20 text-amber-300 px-3 py-1 rounded-lg font-bold border border-amber-500/30">
+                      유료 구매: {currentRoundPurchased}/{MAX_PURCHASED_INFO_PER_ROUND}
+                    </span>
+                  </div>
                 </div>
-             </div>
-             <div className="grid grid-cols-2 gap-4">
-                {INFO_CARDS.filter(c => c.round === parseInt(gameState.currentStatus.split('_')[1] || '1') || myTeam.unlockedCards.includes(c.id)).map(card => {
-                  const isUnlocked = myTeam.unlockedCards.includes(card.id);
-                  return (
-                    <div 
-                      key={card.id} 
-                      onClick={() => !isUnlocked && setShowConfirmPopup(card.id)}
-                      className={`relative aspect-[3/4] rounded-3xl overflow-hidden shadow-xl transform transition-all active:scale-95 ${isUnlocked ? 'bg-white text-slate-900 border-4 border-blue-500' : 'bg-slate-800 text-white'}`}
-                    >
-                      {!isUnlocked && (
-                        <div className="absolute inset-0 bg-black/60 backdrop-blur-md flex flex-col items-center justify-center p-4 text-center">
-                           <svg className="w-8 h-8 text-white/20 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
-                           <p className="text-[10px] font-black uppercase tracking-widest opacity-40">Locked Info</p>
-                           <p className="text-[8px] font-bold mt-1 opacity-60">TAB TO UNLOCK</p>
+                <p className="text-xs text-slate-400 mt-2">
+                  💡 현재 라운드 구매 가격: <span className="text-amber-300 font-bold">{(getInfoPrice(gameState.currentRound) / 10000).toLocaleString()}만원</span>
+                </p>
+              </div>
+
+              {/* 카테고리 필터 */}
+              <div className="flex gap-2 overflow-x-auto pb-2">
+                <button
+                  onClick={() => setSelectedCategory(null)}
+                  className={`px-4 py-2 rounded-xl font-bold text-sm whitespace-nowrap transition-all ${
+                    selectedCategory === null
+                      ? 'bg-indigo-600 text-white'
+                      : 'bg-slate-700/50 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  전체
+                </button>
+                {[0, 1, 2, 3].map(cat => (
+                  <button
+                    key={cat}
+                    onClick={() => setSelectedCategory(cat)}
+                    className={`px-4 py-2 rounded-xl font-bold text-sm whitespace-nowrap transition-all ${
+                      selectedCategory === cat
+                        ? 'bg-indigo-600 text-white'
+                        : 'bg-slate-700/50 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    카테고리 {cat}
+                  </button>
+                ))}
+                <button
+                  onClick={() => setSelectedCategory(-1)}
+                  className={`px-4 py-2 rounded-xl font-bold text-sm whitespace-nowrap transition-all ${
+                    selectedCategory === -1
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-slate-700/50 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  내 정보 ({myTeam.unlockedCards.length})
+                </button>
+              </div>
+
+              {/* 정보 카드 그리드 */}
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
+                {INFO_CARDS
+                  .filter(card => {
+                    if (selectedCategory === -1) return myTeam.unlockedCards.includes(card.id);
+                    if (selectedCategory !== null) return card.categoryIndex === selectedCategory;
+                    return true;
+                  })
+                  .map(card => {
+                    const isUnlocked = myTeam.unlockedCards.includes(card.id);
+
+                    return (
+                      <div
+                        key={card.id}
+                        onClick={() => !isUnlocked && setShowConfirmPopup(card.id)}
+                        className={`aspect-[3/4] rounded-2xl overflow-hidden cursor-pointer transition-all transform hover:scale-105 active:scale-95 ${
+                          isUnlocked
+                            ? 'bg-gradient-to-br from-emerald-500/20 to-teal-500/20 border-2 border-emerald-500/50'
+                            : 'bg-gradient-to-br from-slate-700/50 to-slate-800/50 border border-slate-600/30 hover:border-indigo-500/50'
+                        }`}
+                      >
+                        <div className="h-full flex flex-col p-3">
+                          <div className="flex justify-between items-start mb-2">
+                            <span className="text-[10px] font-bold text-slate-400 bg-slate-700/50 px-2 py-0.5 rounded">
+                              {card.id}
+                            </span>
+                            {isUnlocked ? (
+                              <span className="text-emerald-400 text-xs">✓</span>
+                            ) : (
+                              <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                              </svg>
+                            )}
+                          </div>
+                          <div className="flex-1 flex flex-col items-center justify-center">
+                            <span className="text-2xl font-black text-white">{card.stockId}</span>
+                            <span className="text-[10px] text-slate-400">{card.stockId}사</span>
+                          </div>
+                          {isUnlocked && (
+                            <div className="mt-auto">
+                              <p className="text-[9px] text-emerald-300/80 text-center leading-tight">
+                                정보 열람 가능
+                              </p>
+                            </div>
+                          )}
                         </div>
-                      )}
-                      <div className="p-4 flex flex-col h-full">
-                        <span className={`text-[8px] font-black px-2 py-0.5 rounded-full self-start mb-2 ${isUnlocked ? 'bg-blue-100 text-blue-600' : 'bg-white/10 text-white/50'}`}>#{card.id}</span>
-                        <h4 className="text-sm font-black mb-1">{card.stockId}사 전략 보고서</h4>
-                        {isUnlocked && <p className="text-[10px] font-medium leading-tight opacity-70 mt-2">{card.content}</p>}
                       </div>
-                    </div>
-                  );
-                })}
-             </div>
-          </div>
-        )}
+                    );
+                  })}
+              </div>
+            </div>
+          )}
 
-        {activeTab === 'invest' && (
-          <InvestmentModule 
-            gameState={gameState} 
-            myTeam={myTeam} 
-            totalAssets={totalAssets}
-            setGameState={setGameState}
-          />
-        )}
+          {/* 투자 탭 */}
+          {activeTab === 'invest' && (
+            <InvestmentModule
+              gameState={gameState}
+              myTeam={myTeam}
+              totalAssets={totalAssets}
+              setGameState={setGameState}
+            />
+          )}
 
-        {activeTab === 'status' && (
-          <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
-             <h3 className="text-lg font-black tracking-tighter border-l-4 border-blue-500 pl-3">팀 현황 리포트</h3>
-             <div className="bg-white/5 rounded-[40px] p-8 border border-white/5 text-center">
-                <p className="text-white/40 text-[10px] font-black mb-4">현재 수익률 분포</p>
-                <div className="flex items-end justify-center gap-4 h-48">
-                  {[10, 45, 20, 80, 55].map((h, i) => (
-                    <div key={i} className="flex flex-col items-center gap-2 flex-1">
-                      <div className="w-full bg-gradient-to-t from-blue-600 to-indigo-400 rounded-t-xl" style={{ height: `${h}%` }}></div>
-                      <span className="text-[8px] font-black opacity-40 uppercase">R{i+1}</span>
-                    </div>
-                  ))}
+          {/* 포트폴리오 탭 */}
+          {activeTab === 'portfolio' && (
+            <div className="space-y-6">
+              {/* 보유 종목 */}
+              <div className="iso-card bg-gradient-to-br from-slate-800/90 to-slate-900/95 rounded-2xl p-5 border border-slate-700/50">
+                <h3 className="text-lg font-black text-white mb-4 flex items-center gap-2">
+                  <span className="text-2xl">💼</span>
+                  보유 종목
+                </h3>
+
+                {Object.entries(myTeam.portfolio).filter(([_, qty]) => qty > 0).length === 0 ? (
+                  <p className="text-center text-slate-400 py-8">보유 중인 종목이 없습니다</p>
+                ) : (
+                  <div className="space-y-3">
+                    {Object.entries(myTeam.portfolio)
+                      .filter(([_, qty]) => qty > 0)
+                      .map(([stockId, qty]) => {
+                        const stock = gameState.stocks.find(s => s.id === stockId);
+                        if (!stock) return null;
+
+                        const currentPrice = stock.prices[gameState.currentRound];
+                        const prevPrice = stock.prices[gameState.currentRound - 1] || stock.prices[0];
+                        const change = ((currentPrice - prevPrice) / prevPrice) * 100;
+                        const value = qty * currentPrice;
+
+                        return (
+                          <div key={stockId} className="p-4 rounded-xl bg-slate-700/30 border border-slate-600/30 flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500/30 to-purple-500/30 flex items-center justify-center">
+                              <span className="text-lg font-black text-white">{stockId}</span>
+                            </div>
+                            <div className="flex-1">
+                              <p className="font-bold text-white">{stock.name}</p>
+                              <p className="text-xs text-slate-400">{qty.toLocaleString()}주 보유</p>
+                            </div>
+                            <div className="text-right">
+                              <p className="font-bold text-white font-display">{value.toLocaleString()}원</p>
+                              <p className={`text-xs font-bold ${change >= 0 ? 'text-rose-400' : 'text-blue-400'}`}>
+                                {change >= 0 ? '▲' : '▼'} {Math.abs(change).toFixed(1)}%
+                              </p>
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                )}
+              </div>
+
+              {/* 라운드별 결과 */}
+              {myTeam.roundResults.length > 0 && (
+                <div className="iso-card bg-gradient-to-br from-slate-800/90 to-slate-900/95 rounded-2xl p-5 border border-slate-700/50">
+                  <h3 className="text-lg font-black text-white mb-4 flex items-center gap-2">
+                    <span className="text-2xl">📊</span>
+                    라운드별 수익률
+                  </h3>
+
+                  <div className="flex items-end gap-4 h-40 p-4 bg-slate-700/30 rounded-xl">
+                    {myTeam.roundResults.map((result, idx) => {
+                      const maxRate = Math.max(...myTeam.roundResults.map(r => Math.abs(r.profitRate)), 10);
+                      const height = Math.min(100, (Math.abs(result.profitRate) / maxRate) * 100);
+
+                      return (
+                        <div key={idx} className="flex-1 flex flex-col items-center">
+                          <span className={`text-xs font-bold mb-2 ${result.profitRate >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                            {result.profitRate >= 0 ? '+' : ''}{result.profitRate.toFixed(1)}%
+                          </span>
+                          <div className="w-full flex flex-col justify-end h-24">
+                            <div
+                              className={`w-full rounded-t-lg transition-all ${
+                                result.profitRate >= 0
+                                  ? 'bg-gradient-to-t from-emerald-600 to-emerald-400'
+                                  : 'bg-gradient-to-t from-rose-600 to-rose-400'
+                              }`}
+                              style={{ height: `${height}%` }}
+                            />
+                          </div>
+                          <span className="text-xs text-slate-400 mt-2 font-bold">R{result.round}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* 누적 수익률 */}
+                  <div className="mt-4 p-4 rounded-xl bg-slate-700/30 text-center">
+                    <p className="text-xs text-slate-400 uppercase font-bold mb-1">누적 수익률</p>
+                    <p className={`text-3xl font-black font-display ${
+                      (myTeam.roundResults[myTeam.roundResults.length - 1]?.cumulativeProfitRate || 0) >= 0
+                        ? 'text-emerald-400'
+                        : 'text-rose-400'
+                    }`}>
+                      {(myTeam.roundResults[myTeam.roundResults.length - 1]?.cumulativeProfitRate || 0) >= 0 ? '+' : ''}
+                      {(myTeam.roundResults[myTeam.roundResults.length - 1]?.cumulativeProfitRate || 0).toFixed(1)}%
+                    </p>
+                  </div>
                 </div>
-             </div>
-          </div>
-        )}
+              )}
+            </div>
+          )}
+        </div>
       </main>
 
       {/* 하단 탭 내비게이션 */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white/5 backdrop-blur-2xl border-t border-white/10 px-8 py-5 flex justify-around items-center rounded-t-[40px] shadow-[0_-20px_50px_rgba(0,0,0,0.5)]">
-        <button onClick={() => setActiveTab('info')} className={`flex flex-col items-center transition-all ${activeTab === 'info' ? 'text-blue-500 scale-110' : 'text-white/30'}`}>
-          <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10l4 4v10a2 2 0 01-2 2z"></path></svg>
-          <span className="text-[8px] font-black mt-1 uppercase tracking-widest">Reports</span>
+      <nav className="fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-xl border-t border-slate-700/50 px-6 py-4 flex justify-around items-center z-50">
+        <button
+          onClick={() => setActiveTab('info')}
+          className={`flex flex-col items-center gap-1 transition-all ${
+            activeTab === 'info' ? 'text-indigo-400 scale-110' : 'text-slate-500'
+          }`}
+        >
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+          </svg>
+          <span className="text-[10px] font-bold uppercase">Info</span>
         </button>
-        <button onClick={() => setActiveTab('invest')} className={`flex flex-col items-center transition-all ${activeTab === 'invest' ? 'text-blue-500 scale-110' : 'text-white/30'}`}>
-          <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-          <span className="text-[8px] font-black mt-1 uppercase tracking-widest">Trade</span>
+
+        <button
+          onClick={() => setActiveTab('invest')}
+          className={`flex flex-col items-center gap-1 transition-all ${
+            activeTab === 'invest' ? 'text-indigo-400 scale-110' : 'text-slate-500'
+          }`}
+        >
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
+          </svg>
+          <span className="text-[10px] font-bold uppercase">Trade</span>
         </button>
-        <button onClick={() => setActiveTab('status')} className={`flex flex-col items-center transition-all ${activeTab === 'status' ? 'text-blue-500 scale-110' : 'text-white/30'}`}>
-          <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path></svg>
-          <span className="text-[8px] font-black mt-1 uppercase tracking-widest">Assets</span>
+
+        <button
+          onClick={() => setActiveTab('portfolio')}
+          className={`flex flex-col items-center gap-1 transition-all ${
+            activeTab === 'portfolio' ? 'text-indigo-400 scale-110' : 'text-slate-500'
+          }`}
+        >
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+          </svg>
+          <span className="text-[10px] font-bold uppercase">Portfolio</span>
         </button>
       </nav>
 
       {/* 정보 구매 확인 팝업 */}
       {showConfirmPopup && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-6">
-          <div className="bg-slate-800 p-8 rounded-[40px] border border-white/10 max-w-xs w-full text-center">
-            <h4 className="text-xl font-black mb-2">정보 열람</h4>
-            <p className="text-white/60 text-xs mb-8">정말 이 정보를 구매하시겠습니까?</p>
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="iso-card bg-gradient-to-br from-slate-800 to-slate-900 p-6 rounded-3xl max-w-sm w-full border border-slate-700/50">
+            <div className="text-center mb-6">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 flex items-center justify-center">
+                <span className="text-3xl font-black text-white">
+                  {INFO_CARDS.find(c => c.id === showConfirmPopup)?.stockId}
+                </span>
+              </div>
+              <h4 className="text-xl font-black text-white mb-2">정보 열람</h4>
+              <p className="text-sm text-slate-400">
+                <span className="text-indigo-300 font-bold">{showConfirmPopup}</span> 정보를 열람하시겠습니까?
+              </p>
+            </div>
+
             <div className="space-y-3">
               {myTeam.grantedInfoCount > 0 && (
-                <button 
+                <button
                   onClick={() => useFreeInfo(showConfirmPopup)}
-                  className="w-full bg-blue-600 text-white font-black py-4 rounded-2xl"
+                  className="btn-3d w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold py-4 rounded-xl"
                 >
-                  무료권 사용 (잔여 {myTeam.grantedInfoCount})
+                  🎫 무료권 사용 (잔여 {myTeam.grantedInfoCount}개)
                 </button>
               )}
-              <button 
+
+              <button
                 onClick={() => purchaseInfo(showConfirmPopup)}
-                className="w-full bg-white/10 text-white font-black py-4 rounded-2xl"
+                disabled={currentRoundPurchased >= MAX_PURCHASED_INFO_PER_ROUND}
+                className={`w-full py-4 rounded-xl font-bold transition-all ${
+                  currentRoundPurchased >= MAX_PURCHASED_INFO_PER_ROUND
+                    ? 'bg-slate-700/50 text-slate-500 cursor-not-allowed'
+                    : 'bg-slate-700/50 text-white border-2 border-slate-600/50 hover:border-amber-500/50'
+                }`}
               >
-                현금 구매 ({(parseInt(gameState.currentStatus.split('_')[1] || '1') * 10).toLocaleString()}만원)
+                💰 현금 구매 ({(getInfoPrice(gameState.currentRound) / 10000).toLocaleString()}만원)
+                {currentRoundPurchased >= MAX_PURCHASED_INFO_PER_ROUND && (
+                  <span className="block text-xs text-rose-400 mt-1">라운드 구매 한도 초과</span>
+                )}
               </button>
-              <button onClick={() => setShowConfirmPopup(null)} className="w-full text-white/30 text-[10px] font-black uppercase pt-4">Cancel</button>
+
+              <button
+                onClick={() => setShowConfirmPopup(null)}
+                className="w-full text-slate-500 hover:text-white text-sm py-3 font-semibold transition-colors"
+              >
+                취소
+              </button>
             </div>
           </div>
         </div>
