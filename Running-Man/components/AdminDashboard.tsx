@@ -1,20 +1,59 @@
 
 import React, { useState, useEffect } from 'react';
-import { GameState, GameStatus, GameStep, Team } from '../types';
-import { STOCK_DATA, INITIAL_SEED_MONEY, INFO_CARDS, STEP_NAMES, getInfoPrice } from '../constants';
+import { GameState, GameStatus, GameStep, Team, Room } from '../types';
+import { STOCK_DATA, INITIAL_SEED_MONEY, INFO_CARDS, STEP_NAMES, getInfoPrice, ADMIN_PASSWORD } from '../constants';
+import {
+  createRoom,
+  subscribeToRooms,
+  subscribeToRoom,
+  updateRoomGameState,
+  deleteRoom,
+  createDefaultGameState
+} from '../firebase';
 
 interface AdminDashboardProps {
-  gameState: GameState;
-  setGameState: React.Dispatch<React.SetStateAction<GameState>>;
+  onLogout: () => void;
 }
 
-const AdminDashboard: React.FC<AdminDashboardProps> = ({ gameState, setGameState }) => {
+type AdminView = 'room-list' | 'room-setup' | 'room-manage';
+
+const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
+  const [view, setView] = useState<AdminView>('room-list');
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
+  const [gameState, setGameState] = useState<GameState | null>(null);
+
+  // 방 생성 폼
   const [setupRoomName, setSetupRoomName] = useState('금융사관학교 1기');
   const [setupTeams, setSetupTeams] = useState(5);
   const [setupMaxRounds, setSetupMaxRounds] = useState(4);
+  const [setupPassword, setSetupPassword] = useState(ADMIN_PASSWORD);
+
+  // 게임 관리
   const [timerInput, setTimerInput] = useState(300);
   const [showResultModal, setShowResultModal] = useState(false);
   const [resultStep, setResultStep] = useState<'stocks' | 'teams'>('stocks');
+
+  // 방 목록 실시간 구독
+  useEffect(() => {
+    const unsubscribe = subscribeToRooms((roomList) => {
+      setRooms(roomList);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // 선택된 방 실시간 구독
+  useEffect(() => {
+    if (!selectedRoom) return;
+
+    const unsubscribe = subscribeToRoom(selectedRoom.id, (room) => {
+      if (room) {
+        setSelectedRoom(room);
+        setGameState(room.gameState);
+      }
+    });
+    return () => unsubscribe();
+  }, [selectedRoom?.id]);
 
   // 단계 순서 정의
   const steps = [
@@ -25,71 +64,92 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ gameState, setGameState
     { key: GameStep.RESULT, label: '결과발표', icon: '📈' }
   ];
 
-  const currentStepIndex = steps.findIndex(s => s.key === gameState.currentStep);
+  const currentStepIndex = gameState ? steps.findIndex(s => s.key === gameState.currentStep) : -1;
 
-  // 방 생성
-  const startRoom = () => {
-    const teams: Team[] = Array.from({ length: setupTeams }).map((_, i) => ({
-      id: `team-${i + 1}`,
-      number: i + 1,
-      leaderName: '',
-      members: [],
-      currentCash: INITIAL_SEED_MONEY,
-      portfolio: {},
-      unlockedCards: [],
-      grantedInfoCount: 0,
-      purchasedInfoCountPerRound: {},
-      roundResults: []
-    }));
+  // 새 방 생성
+  const handleCreateRoom = async () => {
+    try {
+      const newRoom = await createRoom(setupRoomName, setupPassword, setupTeams, setupMaxRounds);
+      setSelectedRoom(newRoom);
+      setGameState(newRoom.gameState);
+      setView('room-manage');
+    } catch (error) {
+      console.error('방 생성 오류:', error);
+      alert('방 생성에 실패했습니다. Firebase 설정을 확인해주세요.');
+    }
+  };
 
-    setGameState(prev => ({
-      ...prev,
-      roomName: setupRoomName,
-      totalTeams: setupTeams,
-      maxRounds: setupMaxRounds,
+  // 방 선택 및 관리
+  const handleSelectRoom = (room: Room) => {
+    setSelectedRoom(room);
+    setGameState(room.gameState);
+    setView('room-manage');
+  };
+
+  // 방 삭제
+  const handleDeleteRoom = async (roomId: string) => {
+    if (confirm('정말로 이 방을 삭제하시겠습니까?')) {
+      await deleteRoom(roomId);
+    }
+  };
+
+  // GameState 업데이트 (Firebase에 동기화)
+  const updateGameState = async (newState: GameState) => {
+    if (!selectedRoom) return;
+    setGameState(newState);
+    await updateRoomGameState(selectedRoom.id, newState);
+  };
+
+  // 게임 시작
+  const startGame = async () => {
+    if (!gameState) return;
+
+    const newState: GameState = {
+      ...gameState,
       currentRound: 1,
       currentStatus: GameStatus.ROUND_1,
       currentStep: GameStep.MINI_GAME,
       completedSteps: [],
-      teams,
-      stocks: STOCK_DATA,
       isInvestmentLocked: true,
       revealedResults: false
-    }));
+    };
+
+    await updateGameState(newState);
   };
 
-  // 단계 변경 (순차적으로만 가능)
-  const handleStepChange = (step: GameStep, stepIdx: number) => {
-    if (stepIdx > currentStepIndex + 1) return; // 순차적으로만 진행 가능
+  // 단계 변경
+  const handleStepChange = async (step: GameStep, stepIdx: number) => {
+    if (!gameState || stepIdx > currentStepIndex + 1) return;
 
-    // 이전 단계들을 완료로 표시
     const newCompletedSteps = steps.slice(0, stepIdx).map(s => s.key);
 
-    setGameState(prev => ({
-      ...prev,
+    const newState: GameState = {
+      ...gameState,
       currentStep: step,
       completedSteps: newCompletedSteps,
-      // 결과발표 단계면 결과 모달 표시
       revealedResults: step === GameStep.RESULT
-    }));
+    };
+
+    await updateGameState(newState);
 
     if (step === GameStep.RESULT) {
-      calculateRoundResults();
+      await calculateRoundResults();
       setShowResultModal(true);
       setResultStep('stocks');
     }
   };
 
   // 라운드 결과 계산
-  const calculateRoundResults = () => {
+  const calculateRoundResults = async () => {
+    if (!gameState) return;
+
     const roundIdx = gameState.currentRound;
 
-    setGameState(prev => ({
-      ...prev,
-      teams: prev.teams.map(team => {
-        // 현재 포트폴리오 가치 계산
+    const newState: GameState = {
+      ...gameState,
+      teams: gameState.teams.map(team => {
         const portfolioValue = Object.entries(team.portfolio).reduce((sum, [stockId, qty]) => {
-          const stock = prev.stocks.find(s => s.id === stockId);
+          const stock = gameState.stocks.find(s => s.id === stockId);
           const price = stock?.prices[roundIdx] || 0;
           return sum + (qty * price);
         }, 0);
@@ -97,7 +157,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ gameState, setGameState
         const totalValue = team.currentCash + portfolioValue;
         const profitRate = ((totalValue - INITIAL_SEED_MONEY) / INITIAL_SEED_MONEY) * 100;
 
-        // 이전 누적 수익률
         const prevCumulativeRate = team.roundResults.length > 0
           ? team.roundResults[team.roundResults.length - 1].cumulativeProfitRate
           : 0;
@@ -115,90 +174,202 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ gameState, setGameState
           roundResults: [...team.roundResults, newRoundResult]
         };
       })
-    }));
+    };
+
+    await updateGameState(newState);
   };
 
-  // 다음 라운드로 진행
-  const nextRound = () => {
+  // 다음 라운드
+  const nextRound = async () => {
+    if (!gameState) return;
+
     const rounds = [GameStatus.ROUND_1, GameStatus.ROUND_2, GameStatus.ROUND_3, GameStatus.ROUND_4, GameStatus.FINISHED];
     const currentIdx = rounds.indexOf(gameState.currentStatus);
 
     if (currentIdx >= gameState.maxRounds) {
-      setGameState(prev => ({ ...prev, currentStatus: GameStatus.FINISHED }));
+      await updateGameState({ ...gameState, currentStatus: GameStatus.FINISHED });
       return;
     }
 
     const nextStatus = rounds[currentIdx + 1];
 
-    setGameState(prev => ({
-      ...prev,
+    const newState: GameState = {
+      ...gameState,
       currentStatus: nextStatus,
-      currentRound: prev.currentRound + 1,
+      currentRound: gameState.currentRound + 1,
       currentStep: GameStep.MINI_GAME,
       completedSteps: [],
       isTimerRunning: false,
       isInvestmentLocked: true,
       revealedResults: false,
-      // 팀별 라운드당 구매 개수 초기화
-      teams: prev.teams.map(t => ({
+      teams: gameState.teams.map(t => ({
         ...t,
         purchasedInfoCountPerRound: {
           ...t.purchasedInfoCountPerRound,
-          [prev.currentRound + 1]: 0
+          [gameState.currentRound + 1]: 0
         }
       }))
-    }));
+    };
 
+    await updateGameState(newState);
     setShowResultModal(false);
   };
 
   // 정보 구매권 부여
-  const grantInfo = (teamId: string, count: number) => {
-    setGameState(prev => ({
-      ...prev,
-      teams: prev.teams.map(t =>
+  const grantInfo = async (teamId: string, count: number) => {
+    if (!gameState) return;
+
+    const newState: GameState = {
+      ...gameState,
+      teams: gameState.teams.map(t =>
         t.id === teamId
           ? { ...t, grantedInfoCount: Math.max(0, t.grantedInfoCount + count) }
           : t
       )
-    }));
+    };
+
+    await updateGameState(newState);
   };
 
   // 타이머 관리
   useEffect(() => {
     let interval: NodeJS.Timeout;
-    if (gameState.isTimerRunning && gameState.timerSeconds > 0) {
-      interval = setInterval(() => {
-        setGameState(prev => ({ ...prev, timerSeconds: prev.timerSeconds - 1 }));
+    if (gameState?.isTimerRunning && gameState?.timerSeconds > 0) {
+      interval = setInterval(async () => {
+        const newState: GameState = {
+          ...gameState,
+          timerSeconds: gameState.timerSeconds - 1
+        };
+
+        if (newState.timerSeconds === 0) {
+          newState.isTimerRunning = false;
+          newState.isInvestmentLocked = true;
+        }
+
+        await updateGameState(newState);
       }, 1000);
-    } else if (gameState.timerSeconds === 0 && gameState.isTimerRunning) {
-      setGameState(prev => ({ ...prev, isTimerRunning: false, isInvestmentLocked: true }));
     }
     return () => clearInterval(interval);
-  }, [gameState.isTimerRunning, gameState.timerSeconds]);
+  }, [gameState?.isTimerRunning, gameState?.timerSeconds]);
 
   // 투자 시작
-  const startInvestment = () => {
-    setGameState(prev => ({
-      ...prev,
+  const startInvestment = async () => {
+    if (!gameState) return;
+
+    const newState: GameState = {
+      ...gameState,
       timerSeconds: timerInput,
       timerMaxSeconds: timerInput,
       isTimerRunning: true,
       isInvestmentLocked: false
-    }));
+    };
+
+    await updateGameState(newState);
   };
 
-  // 투자 일시 정지/재개
-  const toggleInvestmentLock = () => {
-    setGameState(prev => ({
-      ...prev,
-      isInvestmentLocked: !prev.isInvestmentLocked,
-      isTimerRunning: prev.isInvestmentLocked // 잠금 해제 시 타이머 재개
-    }));
+  // 투자 잠금/해제
+  const toggleInvestmentLock = async () => {
+    if (!gameState) return;
+
+    const newState: GameState = {
+      ...gameState,
+      isInvestmentLocked: !gameState.isInvestmentLocked,
+      isTimerRunning: gameState.isInvestmentLocked
+    };
+
+    await updateGameState(newState);
   };
 
-  // 게임 시작 전 설정 화면
-  if (gameState.currentStatus === GameStatus.IDLE || gameState.currentStatus === GameStatus.READY) {
+  // ============ 방 목록 화면 ============
+  if (view === 'room-list') {
+    return (
+      <div className="min-h-screen p-6 iso-grid">
+        <div className="max-w-4xl mx-auto">
+          {/* 헤더 */}
+          <div className="flex justify-between items-center mb-8">
+            <div>
+              <h1 className="text-3xl font-black text-white">관리자 대시보드</h1>
+              <p className="text-slate-400 text-sm mt-1">방을 생성하고 관리하세요</p>
+            </div>
+            <button
+              onClick={onLogout}
+              className="px-4 py-2 rounded-xl bg-slate-700/50 text-slate-400 hover:text-white transition-colors"
+            >
+              로그아웃
+            </button>
+          </div>
+
+          {/* 새 방 만들기 버튼 */}
+          <button
+            onClick={() => setView('room-setup')}
+            className="btn-3d w-full bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white font-bold py-5 rounded-2xl text-xl mb-8"
+          >
+            ➕ 새 방 만들기
+          </button>
+
+          {/* 방 목록 */}
+          <div className="space-y-4">
+            <h2 className="text-lg font-bold text-white">내 방 목록</h2>
+
+            {rooms.length === 0 ? (
+              <div className="iso-card bg-slate-800/50 p-8 rounded-2xl text-center border border-slate-700/50">
+                <p className="text-slate-400">생성된 방이 없습니다</p>
+                <p className="text-xs text-slate-500 mt-2">위 버튼을 눌러 새 방을 만들어보세요</p>
+              </div>
+            ) : (
+              rooms.map(room => (
+                <div
+                  key={room.id}
+                  className="iso-card bg-gradient-to-br from-slate-800/90 to-slate-900/95 p-5 rounded-2xl border border-slate-700/50"
+                >
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <h3 className="text-xl font-bold text-white">{room.name}</h3>
+                      <div className="flex gap-2 mt-2">
+                        <span className="bg-indigo-500/20 text-indigo-300 px-2 py-1 rounded text-xs font-bold">
+                          {room.totalTeams}팀
+                        </span>
+                        <span className="bg-purple-500/20 text-purple-300 px-2 py-1 rounded text-xs font-bold">
+                          {room.maxRounds}라운드
+                        </span>
+                        <span className={`px-2 py-1 rounded text-xs font-bold ${
+                          room.gameState?.currentStatus === 'READY'
+                            ? 'bg-amber-500/20 text-amber-300'
+                            : room.gameState?.currentStatus === 'FINISHED'
+                              ? 'bg-slate-500/20 text-slate-300'
+                              : 'bg-emerald-500/20 text-emerald-300'
+                        }`}>
+                          {room.gameState?.currentStatus === 'READY' ? '대기중' :
+                            room.gameState?.currentStatus === 'FINISHED' ? '종료됨' : '진행중'}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleSelectRoom(room)}
+                        className="px-4 py-2 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-500 transition-colors"
+                      >
+                        관리
+                      </button>
+                      <button
+                        onClick={() => handleDeleteRoom(room.id)}
+                        className="px-4 py-2 rounded-xl bg-rose-600/20 text-rose-400 font-bold hover:bg-rose-600/40 transition-colors"
+                      >
+                        삭제
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ============ 방 생성 화면 ============
+  if (view === 'room-setup') {
     return (
       <div className="min-h-screen flex items-center justify-center p-6 iso-grid">
         <div className="iso-card bg-gradient-to-br from-slate-800/90 to-slate-900/95 backdrop-blur-xl p-10 rounded-3xl max-w-xl w-full border border-slate-700/50">
@@ -207,8 +378,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ gameState, setGameState
             <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl mb-4 shadow-lg">
               <span className="text-3xl">🏦</span>
             </div>
-            <h2 className="text-3xl font-black text-white mb-2">새로운 게임 생성</h2>
-            <p className="text-slate-400 text-sm">투자 시뮬레이션을 시작합니다</p>
+            <h2 className="text-3xl font-black text-white mb-2">새로운 방 생성</h2>
+            <p className="text-slate-400 text-sm">투자 시뮬레이션 방을 만듭니다</p>
           </div>
 
           <div className="space-y-6">
@@ -223,6 +394,20 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ gameState, setGameState
                 onChange={e => setSetupRoomName(e.target.value)}
                 className="w-full px-5 py-4 rounded-2xl bg-slate-700/50 border-2 border-slate-600/50 text-white focus:border-indigo-500 outline-none transition-all font-medium"
                 placeholder="방 이름을 입력하세요"
+              />
+            </div>
+
+            {/* 관리자 비밀번호 */}
+            <div>
+              <label className="block text-xs font-bold text-indigo-400 mb-2 uppercase tracking-wider">
+                관리자 비밀번호
+              </label>
+              <input
+                type="password"
+                value={setupPassword}
+                onChange={e => setSetupPassword(e.target.value)}
+                className="w-full px-5 py-4 rounded-2xl bg-slate-700/50 border-2 border-slate-600/50 text-white focus:border-indigo-500 outline-none transition-all font-medium"
+                placeholder="이 방의 관리자 비밀번호"
               />
             </div>
 
@@ -256,13 +441,21 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ gameState, setGameState
               </div>
             </div>
 
-            {/* 시작 버튼 */}
-            <button
-              onClick={startRoom}
-              className="btn-3d w-full bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 hover:from-indigo-500 hover:via-purple-500 hover:to-pink-500 text-white font-black py-5 rounded-2xl text-xl tracking-wide mt-4 animate-pulse-glow"
-            >
-              🚀 투자의 귀재들 START
-            </button>
+            {/* 버튼들 */}
+            <div className="flex gap-4">
+              <button
+                onClick={() => setView('room-list')}
+                className="flex-1 py-4 rounded-2xl bg-slate-700/50 text-slate-300 font-bold hover:bg-slate-600/50 transition-colors"
+              >
+                취소
+              </button>
+              <button
+                onClick={handleCreateRoom}
+                className="flex-1 btn-3d bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white font-bold py-4 rounded-2xl"
+              >
+                방 생성
+              </button>
+            </div>
           </div>
 
           {/* 안내 */}
@@ -273,7 +466,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ gameState, setGameState
                 <p className="text-xs text-slate-500">종목</p>
               </div>
               <div className="p-3 rounded-xl bg-slate-700/30">
-                <p className="text-2xl font-bold text-amber-400 font-display">76</p>
+                <p className="text-2xl font-bold text-amber-400 font-display">95</p>
                 <p className="text-xs text-slate-500">정보 카드</p>
               </div>
               <div className="p-3 rounded-xl bg-slate-700/30">
@@ -287,7 +480,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ gameState, setGameState
     );
   }
 
-  // 게임 종료 화면
+  // ============ 방 관리 화면 ============
+  if (!gameState || !selectedRoom) {
+    return <div className="min-h-screen flex items-center justify-center text-white">로딩 중...</div>;
+  }
+
+  // 게임 종료
   if (gameState.currentStatus === GameStatus.FINISHED) {
     const sortedTeams = [...gameState.teams].sort((a, b) => {
       const aRate = a.roundResults[a.roundResults.length - 1]?.cumulativeProfitRate || 0;
@@ -296,55 +494,113 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ gameState, setGameState
     });
 
     return (
-      <div className="min-h-screen flex items-center justify-center p-6 iso-grid">
-        <div className="iso-card bg-gradient-to-br from-slate-800/90 to-slate-900/95 backdrop-blur-xl p-10 rounded-3xl max-w-3xl w-full border border-slate-700/50">
-          <div className="text-center mb-10">
-            <span className="text-6xl mb-4 block">🏆</span>
-            <h2 className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-400">
-              게임 종료!
-            </h2>
-            <p className="text-slate-400 mt-2">최종 결과를 확인하세요</p>
-          </div>
+      <div className="min-h-screen p-6 iso-grid">
+        <div className="max-w-3xl mx-auto">
+          <button
+            onClick={() => setView('room-list')}
+            className="mb-6 text-slate-400 hover:text-white transition-colors flex items-center gap-2"
+          >
+            ← 방 목록으로
+          </button>
 
-          <div className="space-y-4">
-            {sortedTeams.map((team, idx) => {
-              const finalResult = team.roundResults[team.roundResults.length - 1];
-              return (
-                <div
-                  key={team.id}
-                  className={`p-5 rounded-2xl flex items-center gap-4 ${
-                    idx === 0 ? 'bg-gradient-to-r from-amber-500/20 to-yellow-500/20 border-2 border-amber-500/50' :
-                    idx === 1 ? 'bg-gradient-to-r from-slate-400/20 to-gray-400/20 border border-slate-400/30' :
-                    idx === 2 ? 'bg-gradient-to-r from-orange-600/20 to-amber-700/20 border border-orange-600/30' :
-                    'bg-slate-700/30 border border-slate-600/30'
-                  }`}
-                >
-                  <span className="text-3xl font-black text-slate-400 w-12 font-display">
-                    {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `${idx + 1}`}
-                  </span>
-                  <div className="flex-1">
-                    <p className="font-bold text-white">Team {team.number}</p>
-                    <p className="text-sm text-slate-400">{team.leaderName || '참여자 없음'}</p>
+          <div className="iso-card bg-gradient-to-br from-slate-800/90 to-slate-900/95 p-10 rounded-3xl border border-slate-700/50">
+            <div className="text-center mb-10">
+              <span className="text-6xl mb-4 block">🏆</span>
+              <h2 className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-400">
+                게임 종료!
+              </h2>
+              <p className="text-slate-400 mt-2">{selectedRoom.name} - 최종 결과</p>
+            </div>
+
+            <div className="space-y-4">
+              {sortedTeams.map((team, idx) => {
+                const finalResult = team.roundResults[team.roundResults.length - 1];
+                return (
+                  <div
+                    key={team.id}
+                    className={`p-5 rounded-2xl flex items-center gap-4 ${
+                      idx === 0 ? 'bg-gradient-to-r from-amber-500/20 to-yellow-500/20 border-2 border-amber-500/50' :
+                      idx === 1 ? 'bg-gradient-to-r from-slate-400/20 to-gray-400/20 border border-slate-400/30' :
+                      idx === 2 ? 'bg-gradient-to-r from-orange-600/20 to-amber-700/20 border border-orange-600/30' :
+                      'bg-slate-700/30 border border-slate-600/30'
+                    }`}
+                  >
+                    <span className="text-3xl font-black text-slate-400 w-12 font-display">
+                      {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `${idx + 1}`}
+                    </span>
+                    <div className="flex-1">
+                      <p className="font-bold text-white">Team {team.number}</p>
+                      <p className="text-sm text-slate-400">{team.leaderName || '참여자 없음'}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className={`text-2xl font-black font-display ${
+                        (finalResult?.cumulativeProfitRate || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                      }`}>
+                        {(finalResult?.cumulativeProfitRate || 0) >= 0 ? '+' : ''}
+                        {(finalResult?.cumulativeProfitRate || 0).toFixed(1)}%
+                      </p>
+                      <p className="text-sm text-slate-500">누적 수익률</p>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className={`text-2xl font-black font-display ${
-                      (finalResult?.cumulativeProfitRate || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'
-                    }`}>
-                      {(finalResult?.cumulativeProfitRate || 0) >= 0 ? '+' : ''}
-                      {(finalResult?.cumulativeProfitRate || 0).toFixed(1)}%
-                    </p>
-                    <p className="text-sm text-slate-500">누적 수익률</p>
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>
     );
   }
 
-  // 메인 관리자 대시보드
+  // 게임 시작 전 대기
+  if (gameState.currentStatus === GameStatus.IDLE || gameState.currentStatus === GameStatus.READY) {
+    return (
+      <div className="min-h-screen p-6 iso-grid">
+        <div className="max-w-3xl mx-auto">
+          <button
+            onClick={() => setView('room-list')}
+            className="mb-6 text-slate-400 hover:text-white transition-colors flex items-center gap-2"
+          >
+            ← 방 목록으로
+          </button>
+
+          <div className="iso-card bg-gradient-to-br from-slate-800/90 to-slate-900/95 p-10 rounded-3xl border border-slate-700/50">
+            <div className="text-center mb-8">
+              <h2 className="text-3xl font-black text-white mb-2">{selectedRoom.name}</h2>
+              <p className="text-slate-400">참여자를 기다리고 있습니다</p>
+            </div>
+
+            {/* 팀 현황 */}
+            <div className="grid grid-cols-2 gap-3 mb-8">
+              {gameState.teams.map(team => (
+                <div key={team.id} className="p-4 rounded-xl bg-slate-700/30 border border-slate-600/30">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-white font-bold">
+                      {team.number}
+                    </div>
+                    <div>
+                      <p className="font-bold text-white">Team {team.number}</p>
+                      <p className="text-xs text-slate-400">
+                        {team.members.length > 0 ? `${team.members.length}명 참여` : '대기 중...'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <button
+              onClick={startGame}
+              className="btn-3d w-full bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white font-black py-5 rounded-2xl text-xl animate-pulse-glow"
+            >
+              🚀 게임 시작하기
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ============ 메인 관리 대시보드 ============
   return (
     <div className="min-h-screen p-4 md:p-6 iso-grid overflow-auto">
       <div className="max-w-7xl mx-auto space-y-6">
@@ -352,7 +608,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ gameState, setGameState
         <header className="iso-card bg-gradient-to-r from-slate-800/90 to-slate-900/95 p-6 rounded-2xl border border-slate-700/50">
           <div className="flex flex-wrap justify-between items-center gap-4">
             <div>
-              <h1 className="text-2xl md:text-3xl font-black text-white">{gameState.roomName}</h1>
+              <button
+                onClick={() => setView('room-list')}
+                className="text-slate-400 hover:text-white text-sm mb-2 flex items-center gap-1"
+              >
+                ← 방 목록
+              </button>
+              <h1 className="text-2xl md:text-3xl font-black text-white">{selectedRoom.name}</h1>
               <div className="flex flex-wrap gap-2 mt-2">
                 <span className="bg-indigo-500/20 text-indigo-300 px-3 py-1 rounded-full text-xs font-bold border border-indigo-500/30">
                   Round {gameState.currentRound} / {gameState.maxRounds}
@@ -369,7 +631,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ gameState, setGameState
             {/* 타이머 & 다음 라운드 */}
             <div className="flex items-center gap-4">
               <div className="text-center px-4 py-2 bg-slate-700/50 rounded-xl">
-                <p className="text-xs text-slate-400 uppercase font-bold">Timer</p>
+                <p className="text-xs text-slate-400 uppercase font-bold">타이머</p>
                 <p className={`text-2xl font-black font-display ${
                   gameState.timerSeconds < 60 ? 'text-rose-400' :
                   gameState.timerSeconds < 180 ? 'text-amber-400' : 'text-emerald-400'
@@ -532,67 +794,38 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ gameState, setGameState
           </div>
         </div>
 
-        {/* 주가 현황 (관리자용) */}
-        <div className="iso-card bg-gradient-to-br from-slate-800/90 to-slate-900/95 rounded-2xl p-6 border border-slate-700/50">
-          <h3 className="text-lg font-black text-white mb-4 flex items-center gap-2">
-            <span className="text-2xl">📊</span>
-            주가 현황 (관리자용)
-          </h3>
-
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-            {gameState.stocks.map(stock => {
-              const currentPrice = stock.prices[gameState.currentRound];
-              const prevPrice = stock.prices[gameState.currentRound - 1] || stock.prices[0];
-              const change = ((currentPrice - prevPrice) / prevPrice) * 100;
-
-              return (
-                <div key={stock.id} className="p-3 rounded-xl bg-slate-700/30 border border-slate-600/30">
-                  <div className="flex justify-between items-start mb-2">
-                    <span className="font-bold text-white">{stock.name}</span>
-                    <span className={`text-xs font-bold px-2 py-0.5 rounded ${
-                      change >= 0 ? 'bg-rose-500/20 text-rose-400' : 'bg-blue-500/20 text-blue-400'
-                    }`}>
-                      {change >= 0 ? '+' : ''}{change.toFixed(1)}%
-                    </span>
-                  </div>
-                  <p className="text-lg font-black text-indigo-300 font-display">
-                    {currentPrice.toLocaleString()}원
-                  </p>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* 정보 카드 현황 */}
+        {/* 정보 카드 현황 - 카테고리별 */}
         <div className="iso-card bg-gradient-to-br from-slate-800/90 to-slate-900/95 rounded-2xl p-6 border border-slate-700/50">
           <h3 className="text-lg font-black text-white mb-4 flex items-center gap-2">
             <span className="text-2xl">🃏</span>
-            정보 카드 현황 (관리자용 - 전체 공개)
+            정보 카드 현황 (관리자용 - 카테고리별)
             <span className="ml-auto text-xs text-slate-500 font-normal">총 {INFO_CARDS.length}개</span>
           </h3>
 
-          <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2">
-            {INFO_CARDS.map(card => {
-              // 어떤 팀이 열었는지 확인
-              const unlockedByTeams = gameState.teams.filter(t => t.unlockedCards.includes(card.id));
+          {[0, 1, 2, 3, 4].map(category => (
+            <div key={category} className="mb-4">
+              <p className="text-sm font-bold text-indigo-300 mb-2">카테고리 {category}</p>
+              <div className="grid grid-cols-10 sm:grid-cols-19 gap-1">
+                {INFO_CARDS.filter(c => c.categoryIndex === category).map(card => {
+                  const unlockedByTeams = gameState.teams.filter(t => t.unlockedCards.includes(card.id));
 
-              return (
-                <div
-                  key={card.id}
-                  className={`aspect-square rounded-lg flex flex-col items-center justify-center text-xs font-bold border transition-all ${
-                    unlockedByTeams.length > 0
-                      ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300'
-                      : 'bg-slate-700/30 border-slate-600/30 text-slate-400'
-                  }`}
-                  title={unlockedByTeams.length > 0 ? `Team ${unlockedByTeams.map(t => t.number).join(', ')}` : '미공개'}
-                >
-                  <span className="text-[10px] opacity-60">{card.id}</span>
-                  <span>{card.stockId}</span>
-                </div>
-              );
-            })}
-          </div>
+                  return (
+                    <div
+                      key={card.id}
+                      className={`aspect-square rounded flex flex-col items-center justify-center text-[10px] font-bold border transition-all ${
+                        unlockedByTeams.length > 0
+                          ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300'
+                          : 'bg-slate-700/30 border-slate-600/30 text-slate-400'
+                      }`}
+                      title={unlockedByTeams.length > 0 ? `Team ${unlockedByTeams.map(t => t.number).join(', ')}` : '미공개'}
+                    >
+                      <span>{card.stockId}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -669,10 +902,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ gameState, setGameState
                 </div>
               )}
 
-              {/* 팀별 수익률 막대그래프 */}
+              {/* 팀별 수익률 */}
               {resultStep === 'teams' && (
                 <div className="space-y-6">
-                  {/* 라운드 수익률 */}
                   <div>
                     <h3 className="text-lg font-bold text-white mb-4">라운드 {gameState.currentRound} 수익률</h3>
                     <div className="flex items-end gap-4 h-48 p-4 bg-slate-700/30 rounded-xl">
@@ -691,36 +923,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ gameState, setGameState
                               <div
                                 className={`w-full rounded-t-lg transition-all duration-1000 ${
                                   rate >= 0 ? 'bg-gradient-to-t from-emerald-600 to-emerald-400' : 'bg-gradient-to-t from-rose-600 to-rose-400'
-                                }`}
-                                style={{ height: `${height}%` }}
-                              />
-                            </div>
-                            <span className="text-xs text-slate-400 mt-2 font-bold">Team {team.number}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-
-                  {/* 누적 수익률 */}
-                  <div>
-                    <h3 className="text-lg font-bold text-white mb-4">누적 수익률</h3>
-                    <div className="flex items-end gap-4 h-48 p-4 bg-slate-700/30 rounded-xl">
-                      {gameState.teams.map(team => {
-                        const result = team.roundResults[team.roundResults.length - 1];
-                        const rate = result?.cumulativeProfitRate || 0;
-                        const maxRate = Math.max(...gameState.teams.map(t => Math.abs(t.roundResults[t.roundResults.length - 1]?.cumulativeProfitRate || 0)), 10);
-                        const height = Math.min(100, (Math.abs(rate) / maxRate) * 100);
-
-                        return (
-                          <div key={team.id} className="flex-1 flex flex-col items-center">
-                            <span className={`text-sm font-bold mb-2 ${rate >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                              {rate >= 0 ? '+' : ''}{rate.toFixed(1)}%
-                            </span>
-                            <div className="w-full flex flex-col justify-end h-32">
-                              <div
-                                className={`w-full rounded-t-lg transition-all duration-1000 ${
-                                  rate >= 0 ? 'bg-gradient-to-t from-indigo-600 to-purple-400' : 'bg-gradient-to-t from-rose-600 to-rose-400'
                                 }`}
                                 style={{ height: `${height}%` }}
                               />

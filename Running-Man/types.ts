@@ -73,3 +73,15 @@ export interface GameState {
   stocks: Stock[];
   revealedResults: boolean;
 }
+
+// 방(Room) 인터페이스 - Firebase에 저장
+export interface Room {
+  id: string;
+  name: string;
+  createdAt: number;
+  adminPassword: string;
+  totalTeams: number;
+  maxRounds: number;
+  gameState: GameState;
+  isActive: boolean;
+}
