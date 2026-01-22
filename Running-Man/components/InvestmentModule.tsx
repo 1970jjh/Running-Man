@@ -146,11 +146,16 @@ const InvestmentModule: React.FC<InvestmentModuleProps> = ({ gameState, myTeam, 
         <div className="space-y-3">
           {gameState.stocks.map(stock => {
             const price = stock.prices[currentRoundIdx];
-            const prevPrice = stock.prices[currentRoundIdx - 1] || stock.prices[0];
-            const change = ((price - prevPrice) / prevPrice) * 100;
             const heldQty = myTeam.portfolio[stock.id] || 0;
             const investedAmount = heldQty * price;
             const investRatio = (investedAmount / totalAssets) * 100;
+
+            // 주가 변동률 계산: 1R은 0%, 2R부터는 이전 라운드 대비
+            let change = 0;
+            if (currentRoundIdx > 1) {
+              const prevPrice = stock.prices[currentRoundIdx - 1];
+              change = ((price - prevPrice) / prevPrice) * 100;
+            }
 
             return (
               <button
@@ -176,12 +181,16 @@ const InvestmentModule: React.FC<InvestmentModuleProps> = ({ gameState, myTeam, 
                   <p className="text-xs text-slate-400">{stock.id} Corp</p>
                 </div>
 
-                {/* 가격 & 변동 */}
+                {/* 가격 & 변동 (이전 라운드 대비) */}
                 <div className="text-right">
                   <p className="font-black text-white font-display">{price.toLocaleString()}원</p>
-                  <p className={`text-xs font-bold ${change >= 0 ? 'text-rose-400' : 'text-blue-400'}`}>
-                    {change >= 0 ? '▲' : '▼'} {Math.abs(change).toFixed(1)}%
-                  </p>
+                  {currentRoundIdx === 1 ? (
+                    <p className="text-xs font-bold text-slate-500">- 0.0%</p>
+                  ) : (
+                    <p className={`text-xs font-bold ${change >= 0 ? 'text-rose-400' : 'text-blue-400'}`}>
+                      {change >= 0 ? '▲' : '▼'} {Math.abs(change).toFixed(1)}%
+                    </p>
+                  )}
                 </div>
 
                 {/* 투자 비율 인디케이터 */}
