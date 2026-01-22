@@ -69,6 +69,7 @@ export interface GameState {
   timerMaxSeconds: number;
   isTimerRunning: boolean;
   isInvestmentLocked: boolean;
+  isInvestmentConfirmed: boolean; // 투자 확정 여부
   teams: Team[];
   stocks: Stock[];
   revealedResults: boolean;

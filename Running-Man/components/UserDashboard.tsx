@@ -8,9 +8,10 @@ interface UserDashboardProps {
   gameState: GameState;
   myTeam: Team;
   setGameState: React.Dispatch<React.SetStateAction<GameState>>;
+  onExitRequest?: () => void;
 }
 
-const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGameState }) => {
+const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGameState, onExitRequest }) => {
   const [activeTab, setActiveTab] = useState<'info' | 'invest' | 'portfolio'>('info');
   const [showConfirmPopup, setShowConfirmPopup] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
@@ -80,13 +81,25 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
   }, [totalAssets]);
 
   return (
-    <div className="min-h-screen flex flex-col iso-grid">
+    <div className="min-h-screen flex flex-col iso-grid relative z-10">
       {/* 상단 헤더 */}
-      <header className="bg-gradient-to-r from-slate-800/95 to-slate-900/95 backdrop-blur-xl p-4 md:p-6 border-b border-slate-700/50 sticky top-0 z-40">
+      <header className="bg-gradient-to-r from-slate-800/95 to-slate-900/95 backdrop-blur-xl p-4 md:p-6 border-b border-slate-700/50 sticky top-0 z-40 animate-fade-in-up">
         <div className="max-w-4xl mx-auto">
           {/* 팀 정보 & 상태 */}
           <div className="flex justify-between items-center mb-4">
             <div className="flex items-center gap-3">
+              {/* 나가기 버튼 */}
+              {onExitRequest && (
+                <button
+                  onClick={onExitRequest}
+                  className="w-10 h-10 rounded-xl bg-slate-700/50 border border-slate-600/50 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-600/50 hover:border-rose-500/50 transition-all"
+                  title="방 나가기"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+                  </svg>
+                </button>
+              )}
               <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-black text-lg shadow-lg">
                 {myTeam.number}
               </div>
@@ -156,6 +169,28 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
       {/* 메인 콘텐츠 */}
       <main className="flex-1 p-4 pb-24 overflow-auto">
         <div className="max-w-4xl mx-auto">
+          {/* 결과 대기 중 안내 (결과발표 단계이지만 아직 공개되지 않은 경우) */}
+          {gameState.currentStep === GameStep.RESULT && !gameState.revealedResults && (
+            <div className="mb-6 iso-card bg-gradient-to-br from-amber-500/20 to-orange-500/20 rounded-2xl p-6 border border-amber-500/50 text-center animate-pulse">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-amber-500/30 flex items-center justify-center">
+                <span className="text-3xl">⏳</span>
+              </div>
+              <h3 className="text-xl font-black text-white mb-2">결과 발표 대기 중</h3>
+              <p className="text-sm text-amber-300">관리자가 결과를 발표할 때까지 잠시만 기다려주세요.</p>
+            </div>
+          )}
+
+          {/* 결과 발표됨 알림 */}
+          {gameState.currentStep === GameStep.RESULT && gameState.revealedResults && (
+            <div className="mb-6 iso-card bg-gradient-to-br from-emerald-500/20 to-teal-500/20 rounded-2xl p-6 border border-emerald-500/50 text-center">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-emerald-500/30 flex items-center justify-center">
+                <span className="text-3xl">📊</span>
+              </div>
+              <h3 className="text-xl font-black text-white mb-2">Round {gameState.currentRound} 결과 발표!</h3>
+              <p className="text-sm text-emerald-300">포트폴리오 탭에서 수익률을 확인하세요.</p>
+            </div>
+          )}
+
           {/* 정보 센터 탭 */}
           {activeTab === 'info' && (
             <div className="space-y-6">
@@ -365,54 +400,68 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
                 )}
               </div>
 
-              {/* 라운드별 결과 */}
-              {myTeam.roundResults.length > 0 && (
-                <div className="iso-card bg-gradient-to-br from-slate-800/90 to-slate-900/95 rounded-2xl p-5 border border-slate-700/50">
-                  <h3 className="text-lg font-black text-white mb-4 flex items-center gap-2">
-                    <span className="text-2xl">📊</span>
-                    라운드별 수익률
-                  </h3>
+              {/* 라운드별 결과 - 결과발표가 되어야만 현재 라운드 결과 표시 */}
+              {(() => {
+                // 공개된 라운드 결과만 필터링 (현재 라운드는 revealedResults가 true일 때만 표시)
+                const visibleResults = myTeam.roundResults.filter(result => {
+                  // 현재 라운드 결과는 revealedResults가 true일 때만 표시
+                  if (result.round === gameState.currentRound) {
+                    return gameState.revealedResults;
+                  }
+                  // 이전 라운드 결과는 항상 표시
+                  return result.round < gameState.currentRound;
+                });
 
-                  <div className="flex items-end gap-4 h-40 p-4 bg-slate-700/30 rounded-xl">
-                    {myTeam.roundResults.map((result, idx) => {
-                      const maxRate = Math.max(...myTeam.roundResults.map(r => Math.abs(r.profitRate)), 10);
-                      const height = Math.min(100, (Math.abs(result.profitRate) / maxRate) * 100);
+                if (visibleResults.length === 0) return null;
 
-                      return (
-                        <div key={idx} className="flex-1 flex flex-col items-center">
-                          <span className={`text-xs font-bold mb-2 ${result.profitRate >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                            {result.profitRate >= 0 ? '+' : ''}{result.profitRate.toFixed(1)}%
-                          </span>
-                          <div className="w-full flex flex-col justify-end h-24">
-                            <div
-                              className={`w-full rounded-t-lg transition-all ${
-                                result.profitRate >= 0
-                                  ? 'bg-gradient-to-t from-emerald-600 to-emerald-400'
-                                  : 'bg-gradient-to-t from-rose-600 to-rose-400'
-                              }`}
-                              style={{ height: `${height}%` }}
-                            />
+                return (
+                  <div className="iso-card bg-gradient-to-br from-slate-800/90 to-slate-900/95 rounded-2xl p-5 border border-slate-700/50">
+                    <h3 className="text-lg font-black text-white mb-4 flex items-center gap-2">
+                      <span className="text-2xl">📊</span>
+                      라운드별 수익률
+                    </h3>
+
+                    <div className="flex items-end gap-4 h-40 p-4 bg-slate-700/30 rounded-xl">
+                      {visibleResults.map((result, idx) => {
+                        const maxRate = Math.max(...visibleResults.map(r => Math.abs(r.profitRate)), 10);
+                        const height = Math.min(100, (Math.abs(result.profitRate) / maxRate) * 100);
+
+                        return (
+                          <div key={idx} className="flex-1 flex flex-col items-center">
+                            <span className={`text-xs font-bold mb-2 ${result.profitRate >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                              {result.profitRate >= 0 ? '+' : ''}{result.profitRate.toFixed(1)}%
+                            </span>
+                            <div className="w-full flex flex-col justify-end h-24">
+                              <div
+                                className={`w-full rounded-t-lg transition-all ${
+                                  result.profitRate >= 0
+                                    ? 'bg-gradient-to-t from-emerald-600 to-emerald-400'
+                                    : 'bg-gradient-to-t from-rose-600 to-rose-400'
+                                }`}
+                                style={{ height: `${height}%` }}
+                              />
+                            </div>
+                            <span className="text-xs text-slate-400 mt-2 font-bold">R{result.round}</span>
                           </div>
-                          <span className="text-xs text-slate-400 mt-2 font-bold">R{result.round}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
+                        );
+                      })}
+                    </div>
 
-                  {/* 누적 수익률 */}
-                  <div className="mt-4 p-4 rounded-xl bg-slate-700/30 text-center">
-                    <p className="text-xs text-slate-400 uppercase font-bold mb-1">누적 수익률</p>
-                    <p className={`text-3xl font-black font-display ${
-                      (myTeam.roundResults[myTeam.roundResults.length - 1]?.cumulativeProfitRate || 0) >= 0
-                        ? 'text-emerald-400'
-                        : 'text-rose-400'
-                    }`}>
-                      {(myTeam.roundResults[myTeam.roundResults.length - 1]?.cumulativeProfitRate || 0) >= 0 ? '+' : ''}
-                      {(myTeam.roundResults[myTeam.roundResults.length - 1]?.cumulativeProfitRate || 0).toFixed(1)}%
-                    </p>
+                    {/* 누적 수익률 */}
+                    <div className="mt-4 p-4 rounded-xl bg-slate-700/30 text-center">
+                      <p className="text-xs text-slate-400 uppercase font-bold mb-1">누적 수익률</p>
+                      <p className={`text-3xl font-black font-display ${
+                        (visibleResults[visibleResults.length - 1]?.cumulativeProfitRate || 0) >= 0
+                          ? 'text-emerald-400'
+                          : 'text-rose-400'
+                      }`}>
+                        {(visibleResults[visibleResults.length - 1]?.cumulativeProfitRate || 0) >= 0 ? '+' : ''}
+                        {(visibleResults[visibleResults.length - 1]?.cumulativeProfitRate || 0).toFixed(1)}%
+                      </p>
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
             </div>
           )}
         </div>

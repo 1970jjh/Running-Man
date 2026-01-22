@@ -164,19 +164,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
       ...gameState,
       currentStep: step,
       completedSteps: newCompletedSteps,
-      revealedResults: step === GameStep.RESULT
+      // 결과발표 단계에서는 revealResults 함수를 통해 공개
+      revealedResults: false
     };
 
     await updateGameState(newState);
 
-    if (step === GameStep.RESULT) {
-      await calculateRoundResults();
-      setShowResultModal(true);
-      setResultStep('stocks');
-    }
+    // 결과발표 단계로 전환해도 자동으로 결과를 공개하지 않음
+    // 관리자가 '결과발표' 버튼을 눌러야 공개됨
   };
 
-  // 라운드 결과 계산
+  // 라운드 결과 계산 및 자동 매도
   const calculateRoundResults = async () => {
     if (!gameState) return;
 
@@ -185,29 +183,31 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     const newState: GameState = {
       ...gameState,
       teams: gameState.teams.map(team => {
+        // 포트폴리오 평가액 계산
         const portfolioValue = Object.entries(team.portfolio).reduce((sum, [stockId, qty]) => {
           const stock = gameState.stocks.find(s => s.id === stockId);
           const price = stock?.prices[roundIdx] || 0;
           return sum + (qty * price);
         }, 0);
 
-        const totalValue = team.currentCash + portfolioValue;
-        const profitRate = ((totalValue - INITIAL_SEED_MONEY) / INITIAL_SEED_MONEY) * 100;
+        // 자동 매도: 주식을 모두 팔아 현금화
+        const newCash = team.currentCash + portfolioValue;
 
-        const prevCumulativeRate = team.roundResults.length > 0
-          ? team.roundResults[team.roundResults.length - 1].cumulativeProfitRate
-          : 0;
+        // 시드머니(1000만원) 기준 수익률 계산
+        const profitRate = ((newCash - INITIAL_SEED_MONEY) / INITIAL_SEED_MONEY) * 100;
 
         const newRoundResult = {
           round: roundIdx,
           portfolioValue,
-          totalValue,
+          totalValue: newCash,
           profitRate,
-          cumulativeProfitRate: prevCumulativeRate + profitRate
+          cumulativeProfitRate: profitRate // 시드머니 기준 누적 수익률 = 현재 수익률
         };
 
         return {
           ...team,
+          currentCash: newCash, // 매도 후 현금 업데이트
+          portfolio: {}, // 포트폴리오 초기화 (모든 주식 매도)
           roundResults: [...team.roundResults, newRoundResult]
         };
       })
@@ -238,9 +238,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
       completedSteps: [],
       isTimerRunning: false,
       isInvestmentLocked: true,
+      isInvestmentConfirmed: false,
       revealedResults: false,
       teams: gameState.teams.map(t => ({
         ...t,
+        grantedInfoCount: 0, // 무료 구매권 초기화
         purchasedInfoCountPerRound: {
           ...t.purchasedInfoCountPerRound,
           [gameState.currentRound + 1]: 0
@@ -317,10 +319,124 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     await updateGameState(newState);
   };
 
+  // 투자 확정 (수익률 계산, 사용자에게는 숨김)
+  const confirmInvestment = async () => {
+    if (!gameState) return;
+
+    const roundIdx = gameState.currentRound;
+
+    // 각 팀의 수익률 계산 (roundResults에 저장하지만 주식은 아직 매도하지 않음)
+    const newState: GameState = {
+      ...gameState,
+      isInvestmentLocked: true,
+      isTimerRunning: false,
+      isInvestmentConfirmed: true,
+      teams: gameState.teams.map(team => {
+        // 현재 포트폴리오 평가액 계산
+        const portfolioValue = Object.entries(team.portfolio).reduce((sum, [stockId, qty]) => {
+          const stock = gameState.stocks.find(s => s.id === stockId);
+          const price = stock?.prices[roundIdx] || 0;
+          return sum + (qty * price);
+        }, 0);
+
+        // 총 자산 = 현금 + 주식 평가액
+        const totalValue = team.currentCash + portfolioValue;
+
+        // 시드머니(1000만원) 기준 수익률 계산
+        const profitRate = ((totalValue - INITIAL_SEED_MONEY) / INITIAL_SEED_MONEY) * 100;
+
+        // 기존 roundResults에서 현재 라운드 결과가 있는지 확인
+        const existingResults = team.roundResults.filter(r => r.round !== roundIdx);
+
+        const newRoundResult = {
+          round: roundIdx,
+          portfolioValue,
+          totalValue,
+          profitRate,
+          cumulativeProfitRate: profitRate
+        };
+
+        return {
+          ...team,
+          roundResults: [...existingResults, newRoundResult]
+        };
+      })
+    };
+
+    await updateGameState(newState);
+  };
+
+  // 결과 발표 (사용자에게 공개)
+  const revealResults = async () => {
+    if (!gameState) return;
+
+    await updateGameState({
+      ...gameState,
+      revealedResults: true
+    });
+
+    setShowResultModal(true);
+    setResultStep('stocks');
+  };
+
+  // 다음 라운드 진행 시 자동 매도 처리
+  const autoSellAndNextRound = async () => {
+    if (!gameState) return;
+
+    const roundIdx = gameState.currentRound;
+    const rounds = [GameStatus.ROUND_1, GameStatus.ROUND_2, GameStatus.ROUND_3, GameStatus.ROUND_4, GameStatus.FINISHED];
+    const currentIdx = rounds.indexOf(gameState.currentStatus);
+
+    if (currentIdx >= gameState.maxRounds) {
+      await updateGameState({ ...gameState, currentStatus: GameStatus.FINISHED });
+      setShowResultModal(false);
+      return;
+    }
+
+    const nextStatus = rounds[currentIdx + 1];
+
+    // 자동 매도: 모든 팀의 주식을 현금화
+    const newState: GameState = {
+      ...gameState,
+      currentStatus: nextStatus,
+      currentRound: gameState.currentRound + 1,
+      currentStep: GameStep.MINI_GAME,
+      completedSteps: [],
+      isTimerRunning: false,
+      isInvestmentLocked: true,
+      isInvestmentConfirmed: false,
+      revealedResults: false,
+      teams: gameState.teams.map(team => {
+        // 포트폴리오 평가액 계산 및 현금화
+        const portfolioValue = Object.entries(team.portfolio).reduce((sum, [stockId, qty]) => {
+          const stock = gameState.stocks.find(s => s.id === stockId);
+          const price = stock?.prices[roundIdx] || 0;
+          return sum + (qty * price);
+        }, 0);
+
+        const newCash = team.currentCash + portfolioValue;
+
+        return {
+          ...team,
+          currentCash: newCash,
+          portfolio: {}, // 모든 주식 매도
+          grantedInfoCount: 0, // 무료 구매권 초기화
+          purchasedInfoCountPerRound: {
+            ...team.purchasedInfoCountPerRound,
+            [gameState.currentRound + 1]: 0
+          }
+        };
+      })
+    };
+
+    await updateGameState(newState);
+    setShowResultModal(false);
+  };
+
   // ============ 방 목록 화면 ============
   if (view === 'room-list') {
     return (
-      <div className="min-h-screen p-6 iso-grid">
+      <div className="min-h-screen p-6 iso-grid relative z-10">
         <div className="max-w-4xl mx-auto">
           {/* 헤더 */}
           <div className="flex justify-between items-center mb-8">
@@ -439,8 +555,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   // ============ 방 생성 화면 ============
   if (view === 'room-setup') {
     return (
-      <div className="min-h-screen flex items-center justify-center p-6 iso-grid">
-        <div className="iso-card bg-gradient-to-br from-slate-800/90 to-slate-900/95 backdrop-blur-xl p-10 rounded-3xl max-w-xl w-full border border-slate-700/50">
+      <div className="min-h-screen flex items-center justify-center p-6 iso-grid relative z-10">
+        <div className="iso-card bg-gradient-to-br from-slate-800/90 to-slate-900/95 backdrop-blur-xl p-10 rounded-3xl max-w-xl w-full border border-slate-700/50 animate-fade-in-up">
           {/* 헤더 */}
           <div className="text-center mb-10">
             <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl mb-4 shadow-lg">
@@ -564,8 +680,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   // ============ 방 관리 화면 ============
   if (!gameState || !selectedRoom) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-6 iso-grid">
-        <div className="iso-card bg-gradient-to-br from-slate-800/90 to-slate-900/95 p-10 rounded-3xl text-center border border-slate-700/50">
+      <div className="min-h-screen flex items-center justify-center p-6 iso-grid relative z-10">
+        <div className="iso-card bg-gradient-to-br from-slate-800/90 to-slate-900/95 p-10 rounded-3xl text-center border border-slate-700/50 animate-fade-in-up">
           <div className="w-16 h-16 mx-auto mb-4 rounded-full border-4 border-indigo-500/30 border-t-indigo-500 animate-spin"></div>
           <p className="text-xl font-bold text-white mb-2">게임 데이터 로딩 중...</p>
           <p className="text-sm text-slate-400 mb-6">잠시만 기다려주세요</p>
@@ -593,7 +709,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     });
 
     return (
-      <div className="min-h-screen p-6 iso-grid">
+      <div className="min-h-screen p-6 iso-grid relative z-10">
         <div className="max-w-3xl mx-auto">
           <button
             onClick={() => setView('room-list')}
@@ -653,7 +769,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   // 게임 시작 전 대기
   if (gameState.currentStatus === GameStatus.IDLE || gameState.currentStatus === GameStatus.READY) {
     return (
-      <div className="min-h-screen p-6 iso-grid">
+      <div className="min-h-screen p-6 iso-grid relative z-10">
         <div className="max-w-3xl mx-auto">
           <button
             onClick={() => setView('room-list')}
@@ -701,7 +817,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
 
   // ============ 메인 관리 대시보드 ============
   return (
-    <div className="min-h-screen p-4 md:p-6 iso-grid overflow-auto">
+    <div className="min-h-screen p-4 md:p-6 iso-grid overflow-auto relative z-10">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* 상단 헤더 */}
         <header className="iso-card bg-gradient-to-r from-slate-800/90 to-slate-900/95 p-6 rounded-2xl border border-slate-700/50">
@@ -738,9 +854,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                   {Math.floor(gameState.timerSeconds / 60)}:{(gameState.timerSeconds % 60).toString().padStart(2, '0')}
                 </p>
               </div>
-              {gameState.currentStep === GameStep.RESULT && (
+              {/* 투자 확정 상태 표시 */}
+              {gameState.isInvestmentConfirmed && !gameState.revealedResults && (
+                <div className="px-3 py-2 bg-amber-500/20 border border-amber-500/30 rounded-lg">
+                  <p className="text-xs text-amber-300 font-bold">✅ 투자 확정됨 (결과 미공개)</p>
+                </div>
+              )}
+              {gameState.currentStep === GameStep.RESULT && gameState.revealedResults && (
                 <button
-                  onClick={nextRound}
+                  onClick={autoSellAndNextRound}
                   className="btn-3d bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-6 py-3 rounded-xl font-bold"
                 >
                   {gameState.currentRound >= gameState.maxRounds ? '게임 종료' : '다음 라운드 →'}
@@ -889,6 +1011,36 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                   </div>
                 </div>
               )}
+
+              {/* 투자 확정 버튼 */}
+              <button
+                onClick={confirmInvestment}
+                disabled={gameState.currentStep !== GameStep.INVESTMENT || gameState.isInvestmentConfirmed}
+                className={`w-full py-4 rounded-xl font-bold transition-all mt-4 ${
+                  gameState.currentStep === GameStep.INVESTMENT && !gameState.isInvestmentConfirmed
+                    ? 'btn-3d bg-gradient-to-r from-amber-500 to-orange-500 text-white'
+                    : gameState.isInvestmentConfirmed
+                      ? 'bg-emerald-500/20 text-emerald-300 border-2 border-emerald-500/30 cursor-not-allowed'
+                      : 'bg-slate-700/50 text-slate-500 cursor-not-allowed'
+                }`}
+              >
+                {gameState.isInvestmentConfirmed ? '✅ 투자 확정 완료' : '💎 투자 확정'}
+              </button>
+
+              {/* 결과발표 버튼 */}
+              <button
+                onClick={revealResults}
+                disabled={!gameState.isInvestmentConfirmed || gameState.revealedResults}
+                className={`w-full py-4 rounded-xl font-bold transition-all ${
+                  gameState.isInvestmentConfirmed && !gameState.revealedResults
+                    ? 'btn-3d bg-gradient-to-r from-purple-500 to-pink-500 text-white animate-pulse-glow'
+                    : gameState.revealedResults
+                      ? 'bg-emerald-500/20 text-emerald-300 border-2 border-emerald-500/30 cursor-not-allowed'
+                      : 'bg-slate-700/50 text-slate-500 cursor-not-allowed'
+                }`}
+              >
+                {gameState.revealedResults ? '✅ 결과 공개됨' : '📊 결과발표'}
+              </button>
             </div>
           </div>
         </div>
@@ -912,6 +1064,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                 return sum + (qty * price);
               }, 0);
               const totalAsset = team.currentCash + portfolioValue;
+              // 실시간 수익률 계산 (시드머니 기준)
+              const realTimeProfitRate = ((totalAsset - INITIAL_SEED_MONEY) / INITIAL_SEED_MONEY) * 100;
 
               return (
                 <div key={team.id} className="p-4 rounded-xl bg-slate-700/30 border border-slate-600/30">
@@ -926,6 +1080,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                     <div className="text-right">
                       <p className="text-xs text-slate-400">총 자산</p>
                       <p className="font-bold text-amber-400">{(totalAsset / 10000).toFixed(0)}만원</p>
+                      {/* 실시간 수익률 표시 */}
+                      <p className={`text-sm font-bold ${realTimeProfitRate >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {realTimeProfitRate >= 0 ? '+' : ''}{realTimeProfitRate.toFixed(1)}%
+                      </p>
                     </div>
                   </div>
 
@@ -1131,21 +1289,42 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               )}
 
               {/* 다음 버튼 */}
-              <div className="mt-6 flex justify-end">
+              <div className="mt-6 flex flex-col gap-4">
                 {resultStep === 'stocks' ? (
                   <button
                     onClick={() => setResultStep('teams')}
-                    className="btn-3d bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-8 py-3 rounded-xl font-bold"
+                    className="btn-3d w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-8 py-4 rounded-xl font-bold text-lg"
                   >
                     팀별 수익률 보기 →
                   </button>
                 ) : (
-                  <button
-                    onClick={() => setShowResultModal(false)}
-                    className="btn-3d bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-8 py-3 rounded-xl font-bold"
-                  >
-                    확인
-                  </button>
+                  <>
+                    {/* 자동 매도 안내 */}
+                    <div className="p-4 rounded-xl bg-amber-500/20 border border-amber-500/30">
+                      <p className="text-amber-300 text-sm font-medium text-center">
+                        💰 다음 라운드 버튼을 누르면 모든 팀의 보유 주식이 자동 매도되어 현금화됩니다.
+                      </p>
+                    </div>
+
+                    {/* 다음 라운드 버튼 */}
+                    <button
+                      onClick={autoSellAndNextRound}
+                      className="btn-3d w-full bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-500 text-white px-8 py-5 rounded-xl font-black text-xl animate-pulse-glow"
+                    >
+                      {gameState.currentRound >= gameState.maxRounds ? (
+                        <>🏆 게임 종료 및 최종 결과 확인</>
+                      ) : (
+                        <>🚀 Round {gameState.currentRound + 1} 시작하기</>
+                      )}
+                    </button>
+
+                    <button
+                      onClick={() => setShowResultModal(false)}
+                      className="w-full text-slate-400 hover:text-white py-2 font-medium transition-colors"
+                    >
+                      결과 창 닫기
+                    </button>
+                  </>
                 )}
               </div>
             </div>
