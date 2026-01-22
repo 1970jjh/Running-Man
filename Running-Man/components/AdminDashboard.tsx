@@ -319,45 +319,57 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     await updateGameState(newState);
   };
 
-  // 투자 확정 (수익률 계산, 사용자에게는 숨김)
+  // 투자 확정 (다음 라운드 가격으로 수익률 계산 및 자동 매도)
   const confirmInvestment = async () => {
     if (!gameState) return;
 
-    const roundIdx = gameState.currentRound;
+    const currentRound = gameState.currentRound;
+    const nextRound = currentRound + 1; // 다음 라운드 가격 사용
 
-    // 각 팀의 수익률 계산 (roundResults에 저장하지만 주식은 아직 매도하지 않음)
+    // 각 팀의 수익률 계산 및 자동 매도
     const newState: GameState = {
       ...gameState,
       isInvestmentLocked: true,
       isTimerRunning: false,
       isInvestmentConfirmed: true,
       teams: gameState.teams.map(team => {
-        // 현재 포트폴리오 평가액 계산
-        const portfolioValue = Object.entries(team.portfolio).reduce((sum, [stockId, qty]) => {
+        // 투자 전 현금 (투자에 사용하지 않은 현금)
+        const cashBeforeSale = team.currentCash;
+
+        // 포트폴리오를 다음 라운드 가격으로 평가 및 매도
+        const portfolioValueAtNextRound = Object.entries(team.portfolio).reduce((sum, [stockId, qty]) => {
           const stock = gameState.stocks.find(s => s.id === stockId);
-          const price = stock?.prices[roundIdx] || 0;
-          return sum + (qty * price);
+          // 다음 라운드 가격으로 계산 (prices 배열은 0부터 시작하므로 nextRound 인덱스 사용)
+          const nextRoundPrice = stock?.prices[nextRound] || stock?.prices[currentRound] || 0;
+          return sum + (qty * nextRoundPrice);
         }, 0);
 
-        // 총 자산 = 현금 + 주식 평가액
-        const totalValue = team.currentCash + portfolioValue;
+        // 자동 매도 후 현금 = 기존 현금 + 다음 라운드 가격으로 매도한 금액
+        const cashAfterSale = cashBeforeSale + portfolioValueAtNextRound;
 
         // 시드머니(1000만원) 기준 수익률 계산
-        const profitRate = ((totalValue - INITIAL_SEED_MONEY) / INITIAL_SEED_MONEY) * 100;
+        const profitRate = ((cashAfterSale - INITIAL_SEED_MONEY) / INITIAL_SEED_MONEY) * 100;
+
+        // 누적 수익률 계산
+        // 1R: 누적수익률 = 라운드수익률
+        // 2R~: 누적수익률 = (현재 총 자산 - 시드머니) / 시드머니 * 100
+        const cumulativeProfitRate = profitRate; // 매도 후 현금 기준이므로 동일
 
         // 기존 roundResults에서 현재 라운드 결과가 있는지 확인
-        const existingResults = team.roundResults.filter(r => r.round !== roundIdx);
+        const existingResults = team.roundResults.filter(r => r.round !== currentRound);
 
         const newRoundResult = {
-          round: roundIdx,
-          portfolioValue,
-          totalValue,
-          profitRate,
-          cumulativeProfitRate: profitRate
+          round: currentRound,
+          portfolioValue: portfolioValueAtNextRound, // 다음 라운드 가격 기준 평가액
+          totalValue: cashAfterSale, // 매도 후 총 자산
+          profitRate, // 이번 라운드 수익률
+          cumulativeProfitRate // 누적 수익률
         };
 
         return {
           ...team,
+          currentCash: cashAfterSale, // 자동 매도 후 현금 업데이트
+          portfolio: {}, // 포트폴리오 초기화 (자동 매도 완료)
           roundResults: [...existingResults, newRoundResult]
         };
       })
@@ -379,11 +391,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     setResultStep('stocks');
   };
 
-  // 다음 라운드 진행 시 자동 매도 처리
+  // 다음 라운드 진행 (투자 확정 시 이미 자동 매도 완료)
   const autoSellAndNextRound = async () => {
     if (!gameState) return;
 
-    const roundIdx = gameState.currentRound;
     const rounds = [GameStatus.ROUND_1, GameStatus.ROUND_2, GameStatus.ROUND_3, GameStatus.ROUND_4, GameStatus.FINISHED];
     const currentIdx = rounds.indexOf(gameState.currentStatus);
 
@@ -395,7 +406,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
 
     const nextStatus = rounds[currentIdx + 1];
 
-    // 자동 매도: 모든 팀의 주식을 현금화
+    // 다음 라운드로 이동 (주식은 투자확정 시 이미 매도됨)
     const newState: GameState = {
       ...gameState,
       currentStatus: nextStatus,
@@ -406,27 +417,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
       isInvestmentLocked: true,
       isInvestmentConfirmed: false,
       revealedResults: false,
-      teams: gameState.teams.map(team => {
-        // 포트폴리오 평가액 계산 및 현금화
-        const portfolioValue = Object.entries(team.portfolio).reduce((sum, [stockId, qty]) => {
-          const stock = gameState.stocks.find(s => s.id === stockId);
-          const price = stock?.prices[roundIdx] || 0;
-          return sum + (qty * price);
-        }, 0);
-
-        const newCash = team.currentCash + portfolioValue;
-
-        return {
-          ...team,
-          currentCash: newCash,
-          portfolio: {}, // 모든 주식 매도
-          grantedInfoCount: 0, // 무료 구매권 초기화
-          purchasedInfoCountPerRound: {
-            ...team.purchasedInfoCountPerRound,
-            [gameState.currentRound + 1]: 0
-          }
-        };
-      })
+      teams: gameState.teams.map(team => ({
+        ...team,
+        // 포트폴리오는 투자확정 시 이미 비워짐
+        grantedInfoCount: 0, // 무료 구매권 초기화
+        purchasedInfoCountPerRound: {
+          ...team.purchasedInfoCountPerRound,
+          [gameState.currentRound + 1]: 0
+        }
+      }))
     };
 
     await updateGameState(newState);
@@ -1224,46 +1223,54 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                 </button>
               </div>
 
-              {/* 종목별 주가 */}
+              {/* 종목별 주가 (다음 라운드 가격 = 수익 반영 가격) */}
               {resultStep === 'stocks' && (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                  {gameState.stocks.map(stock => {
-                    const currentPrice = stock.prices[gameState.currentRound];
-                    const prevPrice = stock.prices[gameState.currentRound - 1] || stock.prices[0];
-                    const change = ((currentPrice - prevPrice) / prevPrice) * 100;
+                <div>
+                  <div className="mb-4 p-3 rounded-xl bg-indigo-500/20 border border-indigo-500/30">
+                    <p className="text-indigo-300 text-sm font-medium text-center">
+                      📈 Round {gameState.currentRound}에 투자한 종목은 Round {gameState.currentRound + 1} 가격으로 수익이 반영됩니다.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                    {gameState.stocks.map(stock => {
+                      const investedPrice = stock.prices[gameState.currentRound]; // 투자 시점 가격
+                      const resultPrice = stock.prices[gameState.currentRound + 1] || stock.prices[gameState.currentRound]; // 결과 가격 (다음 라운드)
+                      const change = ((resultPrice - investedPrice) / investedPrice) * 100;
 
-                    return (
-                      <div key={stock.id} className="p-4 rounded-xl bg-slate-700/30 border border-slate-600/30">
-                        <div className="flex justify-between items-center mb-3">
-                          <span className="text-lg font-bold text-white">{stock.name}</span>
-                          <span className={`text-sm font-bold px-2 py-1 rounded-lg ${
-                            change >= 0 ? 'bg-rose-500/20 text-rose-400' : 'bg-blue-500/20 text-blue-400'
-                          }`}>
-                            {change >= 0 ? '▲' : '▼'} {Math.abs(change).toFixed(1)}%
-                          </span>
+                      return (
+                        <div key={stock.id} className="p-4 rounded-xl bg-slate-700/30 border border-slate-600/30">
+                          <div className="flex justify-between items-center mb-3">
+                            <span className="text-lg font-bold text-white">{stock.name}</span>
+                            <span className={`text-sm font-bold px-2 py-1 rounded-lg ${
+                              change >= 0 ? 'bg-rose-500/20 text-rose-400' : 'bg-blue-500/20 text-blue-400'
+                            }`}>
+                              {change >= 0 ? '▲' : '▼'} {Math.abs(change).toFixed(1)}%
+                            </span>
+                          </div>
+                          <p className="text-2xl font-black text-indigo-300 font-display">
+                            {resultPrice.toLocaleString()}원
+                          </p>
+                          <p className="text-xs text-slate-500 mt-1">
+                            투자 시점(R{gameState.currentRound}): {investedPrice.toLocaleString()}원
+                          </p>
                         </div>
-                        <p className="text-2xl font-black text-indigo-300 font-display">
-                          {currentPrice.toLocaleString()}원
-                        </p>
-                        <p className="text-xs text-slate-500 mt-1">
-                          이전: {prevPrice.toLocaleString()}원
-                        </p>
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
               )}
 
               {/* 팀별 수익률 */}
               {resultStep === 'teams' && (
                 <div className="space-y-6">
+                  {/* 라운드 수익률 그래프 */}
                   <div>
-                    <h3 className="text-lg font-bold text-white mb-4">라운드 {gameState.currentRound} 수익률</h3>
+                    <h3 className="text-lg font-bold text-white mb-4">Round {gameState.currentRound} 수익률 (시드머니 1,000만원 기준)</h3>
                     <div className="flex items-end gap-4 h-48 p-4 bg-slate-700/30 rounded-xl">
                       {gameState.teams.map(team => {
                         const result = team.roundResults.find(r => r.round === gameState.currentRound);
-                        const rate = result?.profitRate || 0;
-                        const maxRate = Math.max(...gameState.teams.map(t => Math.abs(t.roundResults.find(r => r.round === gameState.currentRound)?.profitRate || 0)), 10);
+                        const rate = result?.cumulativeProfitRate || 0;
+                        const maxRate = Math.max(...gameState.teams.map(t => Math.abs(t.roundResults.find(r => r.round === gameState.currentRound)?.cumulativeProfitRate || 0)), 10);
                         const height = Math.min(100, (Math.abs(rate) / maxRate) * 100);
 
                         return (
@@ -1285,6 +1292,42 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                       })}
                     </div>
                   </div>
+
+                  {/* 팀별 상세 수익률 테이블 */}
+                  <div className="p-4 rounded-xl bg-slate-700/30">
+                    <h4 className="text-sm font-bold text-slate-300 mb-3">팀별 상세 수익률</h4>
+                    <div className="space-y-2">
+                      {[...gameState.teams]
+                        .sort((a, b) => {
+                          const aRate = a.roundResults.find(r => r.round === gameState.currentRound)?.cumulativeProfitRate || 0;
+                          const bRate = b.roundResults.find(r => r.round === gameState.currentRound)?.cumulativeProfitRate || 0;
+                          return bRate - aRate;
+                        })
+                        .map((team, idx) => {
+                          const result = team.roundResults.find(r => r.round === gameState.currentRound);
+                          const totalValue = result?.totalValue || team.currentCash;
+                          const cumulativeRate = result?.cumulativeProfitRate || 0;
+
+                          return (
+                            <div key={team.id} className="flex items-center justify-between p-3 rounded-lg bg-slate-600/30">
+                              <div className="flex items-center gap-3">
+                                <span className="text-lg font-black text-slate-400 w-6">
+                                  {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `${idx + 1}`}
+                                </span>
+                                <span className="font-bold text-white">Team {team.number}</span>
+                              </div>
+                              <div className="text-right">
+                                <p className="text-sm text-slate-400">{(totalValue / 10000).toFixed(0)}만원</p>
+                                <p className={`font-bold ${cumulativeRate >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                  {cumulativeRate >= 0 ? '+' : ''}{cumulativeRate.toFixed(1)}%
+                                  {gameState.currentRound > 1 && <span className="text-xs text-slate-500 ml-1">(누적)</span>}
+                                </p>
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -1299,10 +1342,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                   </button>
                 ) : (
                   <>
-                    {/* 자동 매도 안내 */}
-                    <div className="p-4 rounded-xl bg-amber-500/20 border border-amber-500/30">
-                      <p className="text-amber-300 text-sm font-medium text-center">
-                        💰 다음 라운드 버튼을 누르면 모든 팀의 보유 주식이 자동 매도되어 현금화됩니다.
+                    {/* 자동 매도 완료 안내 */}
+                    <div className="p-4 rounded-xl bg-emerald-500/20 border border-emerald-500/30">
+                      <p className="text-emerald-300 text-sm font-medium text-center">
+                        ✅ 모든 팀의 보유 주식이 Round {gameState.currentRound + 1} 가격으로 자동 매도되었습니다.
                       </p>
                     </div>
 
