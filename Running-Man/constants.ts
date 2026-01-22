@@ -1,7 +1,7 @@
 
 import { Stock, InfoCard } from './types';
 
-export const ADMIN_PASSWORD = '6749467';
+export const ADMIN_PASSWORD = '6749476';
 export const INITIAL_SEED_MONEY = 10000000; // 1000만원
 export const MAX_INVESTMENT_RATIO = 0.3; // 한 종목당 30%까지
 export const MAX_PURCHASED_INFO_PER_ROUND = 10; // 라운드당 최대 10개 구매

@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Role, Room } from '../types';
+import { ADMIN_PASSWORD } from '../constants';
 import { subscribeToRooms, isFirebaseReady, getFirebaseError } from '../firebase';
 
 interface LoginProps {
@@ -16,7 +17,8 @@ const Login: React.FC<LoginProps> = ({ onLogin, onAdminAccess }) => {
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
   const [userName, setUserName] = useState('');
   const [teamNum, setTeamNum] = useState(1);
-  const [password, setPassword] = useState('');
+  const [adminPassword, setAdminPassword] = useState('');
+  const [adminPasswordError, setAdminPasswordError] = useState(false);
   const [loading, setLoading] = useState(true);
   const [firebaseConnected, setFirebaseConnected] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -78,9 +80,15 @@ const Login: React.FC<LoginProps> = ({ onLogin, onAdminAccess }) => {
     });
   };
 
-  // 관리자 모드 접근
-  const handleAdminAccess = () => {
-    onAdminAccess();
+  // 관리자 비밀번호 확인
+  const handleAdminPasswordSubmit = () => {
+    if (adminPassword === ADMIN_PASSWORD) {
+      setAdminPasswordError(false);
+      onAdminAccess();
+    } else {
+      setAdminPasswordError(true);
+      setAdminPassword('');
+    }
   };
 
   return (
@@ -139,7 +147,11 @@ const Login: React.FC<LoginProps> = ({ onLogin, onAdminAccess }) => {
             </button>
 
             <button
-              onClick={handleAdminAccess}
+              onClick={() => {
+                setAdminPassword('');
+                setAdminPasswordError(false);
+                setStep('admin-login');
+              }}
               className="w-full bg-slate-700/50 hover:bg-slate-600/50 text-white font-bold py-4 rounded-2xl transition-all border-2 border-slate-600/50 hover:border-amber-500/50"
             >
               관리자 입장
@@ -280,6 +292,78 @@ const Login: React.FC<LoginProps> = ({ onLogin, onAdminAccess }) => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
               </svg>
               다른 방 선택
+            </button>
+          </div>
+        )}
+
+        {/* 관리자 비밀번호 입력 단계 */}
+        {!loading && step === 'admin-login' && (
+          <div className="space-y-5">
+            <div className="mb-6">
+              <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-amber-500 to-orange-600 rounded-2xl flex items-center justify-center shadow-lg">
+                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                </svg>
+              </div>
+              <h3 className="text-xl font-bold text-white">관리자 인증</h3>
+              <p className="text-slate-400 text-sm mt-1">비밀번호를 입력해주세요</p>
+            </div>
+
+            {/* 비밀번호 오류 메시지 */}
+            {adminPasswordError && (
+              <div className="p-3 rounded-xl bg-rose-500/20 border border-rose-500/50 animate-shake">
+                <p className="text-rose-300 text-sm font-medium">비밀번호가 올바르지 않습니다</p>
+              </div>
+            )}
+
+            {/* 비밀번호 입력 */}
+            <div className="relative">
+              <input
+                type="password"
+                placeholder="비밀번호 입력"
+                value={adminPassword}
+                onChange={(e) => {
+                  setAdminPassword(e.target.value);
+                  setAdminPasswordError(false);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    handleAdminPasswordSubmit();
+                  }
+                }}
+                className={`w-full px-5 py-4 rounded-2xl bg-slate-700/50 border-2 text-white placeholder-slate-400 focus:bg-slate-700/80 outline-none transition-all font-medium text-center text-xl tracking-widest ${
+                  adminPasswordError ? 'border-rose-500/50' : 'border-slate-600/50 focus:border-amber-500'
+                }`}
+                autoFocus
+              />
+              <div className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"/>
+                </svg>
+              </div>
+            </div>
+
+            {/* 확인 버튼 */}
+            <button
+              onClick={handleAdminPasswordSubmit}
+              disabled={!adminPassword.trim()}
+              className={`btn-3d w-full text-white font-bold py-4 rounded-2xl transition-all text-lg tracking-wide ${
+                adminPassword.trim()
+                  ? 'bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500 hover:from-amber-400 hover:via-orange-400 hover:to-amber-400'
+                  : 'bg-slate-600 cursor-not-allowed'
+              }`}
+            >
+              관리자 입장
+            </button>
+
+            <button
+              onClick={() => setStep('select-mode')}
+              className="w-full text-slate-500 hover:text-white text-sm py-3 font-semibold transition-colors flex items-center justify-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+              </svg>
+              돌아가기
             </button>
           </div>
         )}
