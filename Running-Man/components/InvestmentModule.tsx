@@ -39,9 +39,8 @@ const InvestmentModule: React.FC<InvestmentModuleProps> = ({ gameState, myTeam, 
     return (currentInvested + estimatedInvestment) > maxInvestablePerStock;
   }, [currentInvested, estimatedInvestment, maxInvestablePerStock]);
 
-  // 투자 가능 여부
+  // 투자 가능 여부 (타이머와 관계없이 isInvestmentLocked만 체크)
   const isTradeDisabled = gameState.currentStep !== GameStep.INVESTMENT ||
-                          gameState.timerSeconds <= 0 ||
                           gameState.isInvestmentLocked;
 
   // 매수
