@@ -178,6 +178,15 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
                 <p className="text-xs text-slate-400 mt-2">
                   💡 현재 라운드 구매 가격: <span className="text-amber-300 font-bold">{(getInfoPrice(gameState.currentRound) / 10000).toLocaleString()}만원</span>
                 </p>
+                {/* 정보 구매 단계 안내 */}
+                {gameState.currentStep !== GameStep.INFO_PURCHASE && (
+                  <div className="mt-3 p-3 rounded-xl bg-rose-500/10 border border-rose-500/30">
+                    <p className="text-xs text-rose-300 font-medium">
+                      🔒 정보 구매는 <span className="font-bold">'정보구매'</span> 단계에서만 가능합니다.
+                      <span className="block text-rose-400/70 mt-1">현재 단계: {STEP_NAMES[gameState.currentStep]}</span>
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* 카테고리 필터 */}
@@ -217,8 +226,8 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
                 </button>
               </div>
 
-              {/* 정보 카드 그리드 */}
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
+              {/* 정보 카드 목록 (세로 리스트) */}
+              <div className="space-y-2">
                 {INFO_CARDS
                   .filter(card => {
                     if (selectedCategory === -1) return myTeam.unlockedCards.includes(card.id);
@@ -227,6 +236,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
                   })
                   .map(card => {
                     const isUnlocked = myTeam.unlockedCards.includes(card.id);
+                    const canPurchase = gameState.currentStep === GameStep.INFO_PURCHASE;
 
                     return (
                       <div
@@ -234,39 +244,52 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
                         onClick={() => {
                           if (isUnlocked) {
                             setViewingCard(card.id);
-                          } else {
+                          } else if (canPurchase) {
                             setShowConfirmPopup(card.id);
                           }
                         }}
-                        className={`aspect-[3/4] rounded-2xl overflow-hidden cursor-pointer transition-all transform hover:scale-105 active:scale-95 ${
+                        className={`p-3 rounded-xl flex items-center gap-3 transition-all ${
                           isUnlocked
-                            ? 'bg-gradient-to-br from-emerald-500/20 to-teal-500/20 border-2 border-emerald-500/50'
-                            : 'bg-gradient-to-br from-slate-700/50 to-slate-800/50 border border-slate-600/30 hover:border-indigo-500/50'
+                            ? 'bg-gradient-to-r from-emerald-500/20 to-teal-500/20 border border-emerald-500/50 cursor-pointer'
+                            : canPurchase
+                              ? 'bg-slate-700/30 border border-slate-600/30 hover:border-indigo-500/50 cursor-pointer'
+                              : 'bg-slate-800/30 border border-slate-700/30 cursor-not-allowed opacity-60'
                         }`}
                       >
-                        <div className="h-full flex flex-col p-3">
-                          <div className="flex justify-between items-start mb-2">
-                            <span className="text-[10px] font-bold text-slate-400 bg-slate-700/50 px-2 py-0.5 rounded">
+                        {/* 카드 ID & 아이콘 */}
+                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+                          isUnlocked
+                            ? 'bg-emerald-500/30 border border-emerald-500/50'
+                            : 'bg-slate-700/50 border border-slate-600/30'
+                        }`}>
+                          <span className="text-lg font-black text-white">{card.stockId}</span>
+                        </div>
+
+                        {/* 카드 정보 */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-slate-400 bg-slate-700/50 px-2 py-0.5 rounded">
                               {card.id}
                             </span>
-                            {isUnlocked ? (
-                              <span className="text-emerald-400 text-xs">✓</span>
-                            ) : (
-                              <svg className="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
-                              </svg>
-                            )}
+                            <span className="text-sm font-bold text-white">{card.stockId}사 정보</span>
                           </div>
-                          <div className="flex-1 flex flex-col items-center justify-center">
-                            <span className="text-2xl font-black text-white">{card.stockId}</span>
-                            <span className="text-[10px] text-slate-400">{card.stockId}사</span>
-                          </div>
-                          {isUnlocked && (
-                            <div className="mt-auto">
-                              <p className="text-[9px] text-emerald-300/80 text-center leading-tight">
-                                탭하여 열람
-                              </p>
-                            </div>
+                          <p className="text-xs text-slate-500 mt-0.5">카테고리 {card.categoryIndex}</p>
+                        </div>
+
+                        {/* 상태 표시 */}
+                        <div className="flex items-center">
+                          {isUnlocked ? (
+                            <span className="bg-emerald-500/20 text-emerald-300 px-3 py-1 rounded-lg text-xs font-bold border border-emerald-500/30">
+                              ✓ 열람
+                            </span>
+                          ) : canPurchase ? (
+                            <span className="bg-indigo-500/20 text-indigo-300 px-3 py-1 rounded-lg text-xs font-bold border border-indigo-500/30">
+                              구매
+                            </span>
+                          ) : (
+                            <span className="bg-slate-700/50 text-slate-500 px-3 py-1 rounded-lg text-xs font-bold">
+                              🔒
+                            </span>
                           )}
                         </div>
                       </div>
@@ -307,9 +330,14 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
                         if (!stock) return null;
 
                         const currentPrice = stock.prices[gameState.currentRound];
-                        const prevPrice = stock.prices[gameState.currentRound - 1] || stock.prices[0];
-                        const change = ((currentPrice - prevPrice) / prevPrice) * 100;
                         const value = qty * currentPrice;
+
+                        // 주가 변동률: 1R은 0%, 2R부터는 이전 라운드 대비
+                        let change = 0;
+                        if (gameState.currentRound > 1) {
+                          const prevPrice = stock.prices[gameState.currentRound - 1];
+                          change = ((currentPrice - prevPrice) / prevPrice) * 100;
+                        }
 
                         return (
                           <div key={stockId} className="p-4 rounded-xl bg-slate-700/30 border border-slate-600/30 flex items-center gap-4">
@@ -322,9 +350,13 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
                             </div>
                             <div className="text-right">
                               <p className="font-bold text-white font-display">{value.toLocaleString()}원</p>
-                              <p className={`text-xs font-bold ${change >= 0 ? 'text-rose-400' : 'text-blue-400'}`}>
-                                {change >= 0 ? '▲' : '▼'} {Math.abs(change).toFixed(1)}%
-                              </p>
+                              {gameState.currentRound === 1 ? (
+                                <p className="text-xs font-bold text-slate-500">- 0.0%</p>
+                              ) : (
+                                <p className={`text-xs font-bold ${change >= 0 ? 'text-rose-400' : 'text-blue-400'}`}>
+                                  {change >= 0 ? '▲' : '▼'} {Math.abs(change).toFixed(1)}%
+                                </p>
+                              )}
                             </div>
                           </div>
                         );

@@ -893,38 +893,133 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
           </div>
         </div>
 
-        {/* 정보 카드 현황 - 카테고리별 */}
+        {/* 팀별 투자 현황 (포트폴리오) */}
+        <div className="iso-card bg-gradient-to-br from-slate-800/90 to-slate-900/95 rounded-2xl p-6 border border-slate-700/50">
+          <h3 className="text-lg font-black text-white mb-4 flex items-center gap-2">
+            <span className="text-2xl">💼</span>
+            팀별 투자 현황
+            <span className="ml-auto text-xs text-slate-500 font-normal">
+              {gameState.currentStep === GameStep.RESULT ? '✅ 투자 완료' : '실시간 업데이트'}
+            </span>
+          </h3>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {gameState.teams.map(team => {
+              const portfolioEntries = Object.entries(team.portfolio).filter(([_, qty]) => qty > 0);
+              const portfolioValue = portfolioEntries.reduce((sum, [stockId, qty]) => {
+                const stock = gameState.stocks.find(s => s.id === stockId);
+                const price = stock?.prices[gameState.currentRound] || 0;
+                return sum + (qty * price);
+              }, 0);
+              const totalAsset = team.currentCash + portfolioValue;
+
+              return (
+                <div key={team.id} className="p-4 rounded-xl bg-slate-700/30 border border-slate-600/30">
+                  <div className="flex items-center gap-3 mb-3 pb-3 border-b border-slate-600/30">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-white font-bold">
+                      {team.number}
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-bold text-white">Team {team.number}</p>
+                      <p className="text-xs text-slate-400">{team.leaderName || '대기 중...'}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-slate-400">총 자산</p>
+                      <p className="font-bold text-amber-400">{(totalAsset / 10000).toFixed(0)}만원</p>
+                    </div>
+                  </div>
+
+                  <div className="mb-2">
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="text-slate-400">보유 현금</span>
+                      <span className="text-emerald-400 font-bold">{(team.currentCash / 10000).toFixed(0)}만원</span>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-slate-400">주식 평가액</span>
+                      <span className="text-indigo-400 font-bold">{(portfolioValue / 10000).toFixed(0)}만원</span>
+                    </div>
+                  </div>
+
+                  {portfolioEntries.length > 0 ? (
+                    <div className="mt-3 pt-3 border-t border-slate-600/30">
+                      <p className="text-xs text-slate-500 mb-2 font-bold">보유 종목</p>
+                      <div className="space-y-1 max-h-32 overflow-y-auto">
+                        {portfolioEntries.map(([stockId, qty]) => {
+                          const stock = gameState.stocks.find(s => s.id === stockId);
+                          const price = stock?.prices[gameState.currentRound] || 0;
+                          const value = qty * price;
+                          return (
+                            <div key={stockId} className="flex justify-between items-center text-xs bg-slate-600/30 px-2 py-1 rounded">
+                              <span className="text-white font-medium">{stock?.name || stockId}</span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-slate-400">{qty}주</span>
+                                <span className="text-indigo-300 font-bold">{(value / 10000).toFixed(0)}만</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mt-3 pt-3 border-t border-slate-600/30">
+                      <p className="text-xs text-slate-500 text-center py-2">보유 종목 없음</p>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* 정보 카드 현황 - 세로 목록 형태 */}
         <div className="iso-card bg-gradient-to-br from-slate-800/90 to-slate-900/95 rounded-2xl p-6 border border-slate-700/50">
           <h3 className="text-lg font-black text-white mb-4 flex items-center gap-2">
             <span className="text-2xl">🃏</span>
-            정보 카드 현황 (관리자용 - 카테고리별)
+            정보 카드 현황
             <span className="ml-auto text-xs text-slate-500 font-normal">총 {INFO_CARDS.length}개</span>
           </h3>
 
-          {[0, 1, 2, 3, 4].map(category => (
-            <div key={category} className="mb-4">
-              <p className="text-sm font-bold text-indigo-300 mb-2">카테고리 {category}</p>
-              <div className="grid grid-cols-10 sm:grid-cols-19 gap-1">
-                {INFO_CARDS.filter(c => c.categoryIndex === category).map(card => {
-                  const unlockedByTeams = gameState.teams.filter(t => t.unlockedCards.includes(card.id));
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
+            {[0, 1, 2, 3, 4].map(category => {
+              const categoryCards = INFO_CARDS.filter(c => c.categoryIndex === category);
+              const unlockedCount = categoryCards.filter(card =>
+                gameState.teams.some(t => t.unlockedCards.includes(card.id))
+              ).length;
 
-                  return (
-                    <div
-                      key={card.id}
-                      className={`aspect-square rounded flex flex-col items-center justify-center text-[10px] font-bold border transition-all ${
-                        unlockedByTeams.length > 0
-                          ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-300'
-                          : 'bg-slate-700/30 border-slate-600/30 text-slate-400'
-                      }`}
-                      title={unlockedByTeams.length > 0 ? `Team ${unlockedByTeams.map(t => t.number).join(', ')}` : '미공개'}
-                    >
-                      <span>{card.stockId}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
+              return (
+                <div key={category} className="p-3 rounded-xl bg-slate-700/30 border border-slate-600/30">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-bold text-indigo-300">카테고리 {category}</p>
+                    <span className="text-xs text-slate-500">{unlockedCount}/{categoryCards.length}</span>
+                  </div>
+                  <div className="space-y-1 max-h-40 overflow-y-auto">
+                    {categoryCards.map(card => {
+                      const unlockedByTeams = gameState.teams.filter(t => t.unlockedCards.includes(card.id));
+                      const isUnlocked = unlockedByTeams.length > 0;
+
+                      return (
+                        <div
+                          key={card.id}
+                          className={`flex items-center justify-between px-2 py-1 rounded text-xs ${
+                            isUnlocked
+                              ? 'bg-emerald-500/20 text-emerald-300'
+                              : 'bg-slate-600/30 text-slate-500'
+                          }`}
+                        >
+                          <span className="font-medium">{card.stockId}</span>
+                          {isUnlocked && (
+                            <span className="text-[10px] text-emerald-400">
+                              T{unlockedByTeams.map(t => t.number).join(',')}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
 
