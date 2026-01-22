@@ -176,7 +176,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     }
   };
 
-  // 라운드 결과 계산
+  // 라운드 결과 계산 및 자동 매도
   const calculateRoundResults = async () => {
     if (!gameState) return;
 
@@ -185,29 +185,31 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     const newState: GameState = {
       ...gameState,
       teams: gameState.teams.map(team => {
+        // 포트폴리오 평가액 계산
         const portfolioValue = Object.entries(team.portfolio).reduce((sum, [stockId, qty]) => {
           const stock = gameState.stocks.find(s => s.id === stockId);
           const price = stock?.prices[roundIdx] || 0;
           return sum + (qty * price);
         }, 0);
 
-        const totalValue = team.currentCash + portfolioValue;
-        const profitRate = ((totalValue - INITIAL_SEED_MONEY) / INITIAL_SEED_MONEY) * 100;
+        // 자동 매도: 주식을 모두 팔아 현금화
+        const newCash = team.currentCash + portfolioValue;
 
-        const prevCumulativeRate = team.roundResults.length > 0
-          ? team.roundResults[team.roundResults.length - 1].cumulativeProfitRate
-          : 0;
+        // 시드머니(1000만원) 기준 수익률 계산
+        const profitRate = ((newCash - INITIAL_SEED_MONEY) / INITIAL_SEED_MONEY) * 100;
 
         const newRoundResult = {
           round: roundIdx,
           portfolioValue,
-          totalValue,
+          totalValue: newCash,
           profitRate,
-          cumulativeProfitRate: prevCumulativeRate + profitRate
+          cumulativeProfitRate: profitRate // 시드머니 기준 누적 수익률 = 현재 수익률
         };
 
         return {
           ...team,
+          currentCash: newCash, // 매도 후 현금 업데이트
+          portfolio: {}, // 포트폴리오 초기화 (모든 주식 매도)
           roundResults: [...team.roundResults, newRoundResult]
         };
       })
@@ -1131,21 +1133,42 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               )}
 
               {/* 다음 버튼 */}
-              <div className="mt-6 flex justify-end">
+              <div className="mt-6 flex flex-col gap-4">
                 {resultStep === 'stocks' ? (
                   <button
                     onClick={() => setResultStep('teams')}
-                    className="btn-3d bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-8 py-3 rounded-xl font-bold"
+                    className="btn-3d w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-8 py-4 rounded-xl font-bold text-lg"
                   >
                     팀별 수익률 보기 →
                   </button>
                 ) : (
-                  <button
-                    onClick={() => setShowResultModal(false)}
-                    className="btn-3d bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-8 py-3 rounded-xl font-bold"
-                  >
-                    확인
-                  </button>
+                  <>
+                    {/* 자동 매도 안내 */}
+                    <div className="p-4 rounded-xl bg-amber-500/20 border border-amber-500/30">
+                      <p className="text-amber-300 text-sm font-medium text-center">
+                        💰 모든 팀의 보유 주식이 자동 매도되어 현금화되었습니다.
+                      </p>
+                    </div>
+
+                    {/* 다음 라운드 버튼 */}
+                    <button
+                      onClick={nextRound}
+                      className="btn-3d w-full bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-500 text-white px-8 py-5 rounded-xl font-black text-xl animate-pulse-glow"
+                    >
+                      {gameState.currentRound >= gameState.maxRounds ? (
+                        <>🏆 게임 종료 및 최종 결과 확인</>
+                      ) : (
+                        <>🚀 Round {gameState.currentRound + 1} 시작하기</>
+                      )}
+                    </button>
+
+                    <button
+                      onClick={() => setShowResultModal(false)}
+                      className="w-full text-slate-400 hover:text-white py-2 font-medium transition-colors"
+                    >
+                      결과 창 닫기
+                    </button>
+                  </>
                 )}
               </div>
             </div>
