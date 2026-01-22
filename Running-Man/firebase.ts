@@ -448,6 +448,43 @@ export const joinTeam = async (
   }
 };
 
+// ========== 팀 나가기 ==========
+export const leaveTeam = async (
+  roomId: string,
+  teamNumber: number
+): Promise<boolean> => {
+  if (!database) {
+    console.error('Firebase가 초기화되지 않았습니다.');
+    return false;
+  }
+
+  try {
+    const room = await getRoom(roomId);
+    if (!room) {
+      console.error('방을 찾을 수 없습니다:', roomId);
+      return false;
+    }
+
+    // teams 배열에서 해당 팀 찾기
+    const teams = room.gameState.teams;
+    const teamIndex = teams.findIndex(t => t.number === teamNumber);
+
+    if (teamIndex === -1) {
+      console.error('팀을 찾을 수 없습니다:', teamNumber);
+      return false;
+    }
+
+    // 참고: 실제로 멤버를 제거하지는 않음 (게임 진행 중 데이터 유지)
+    // 필요시 여기서 멤버 제거 로직 추가 가능
+    console.log(`사용자가 Team ${teamNumber}에서 퇴장했습니다.`);
+
+    return true;
+  } catch (error) {
+    console.error('팀 나가기 오류:', error);
+    return false;
+  }
+};
+
 // ========== 관리자 비밀번호 확인 ==========
 export const verifyAdminPassword = async (
   roomId: string,

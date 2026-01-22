@@ -8,9 +8,10 @@ interface UserDashboardProps {
   gameState: GameState;
   myTeam: Team;
   setGameState: React.Dispatch<React.SetStateAction<GameState>>;
+  onExitRequest?: () => void;
 }
 
-const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGameState }) => {
+const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGameState, onExitRequest }) => {
   const [activeTab, setActiveTab] = useState<'info' | 'invest' | 'portfolio'>('info');
   const [showConfirmPopup, setShowConfirmPopup] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
@@ -87,6 +88,18 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
           {/* 팀 정보 & 상태 */}
           <div className="flex justify-between items-center mb-4">
             <div className="flex items-center gap-3">
+              {/* 나가기 버튼 */}
+              {onExitRequest && (
+                <button
+                  onClick={onExitRequest}
+                  className="w-10 h-10 rounded-xl bg-slate-700/50 border border-slate-600/50 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-600/50 hover:border-rose-500/50 transition-all"
+                  title="방 나가기"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+                  </svg>
+                </button>
+              )}
               <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-black text-lg shadow-lg">
                 {myTeam.number}
               </div>
