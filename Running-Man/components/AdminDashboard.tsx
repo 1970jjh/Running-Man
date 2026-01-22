@@ -320,7 +320,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   // ============ 방 목록 화면 ============
   if (view === 'room-list') {
     return (
-      <div className="min-h-screen p-6 iso-grid">
+      <div className="min-h-screen p-6 iso-grid relative z-10">
         <div className="max-w-4xl mx-auto">
           {/* 헤더 */}
           <div className="flex justify-between items-center mb-8">
@@ -439,8 +439,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   // ============ 방 생성 화면 ============
   if (view === 'room-setup') {
     return (
-      <div className="min-h-screen flex items-center justify-center p-6 iso-grid">
-        <div className="iso-card bg-gradient-to-br from-slate-800/90 to-slate-900/95 backdrop-blur-xl p-10 rounded-3xl max-w-xl w-full border border-slate-700/50">
+      <div className="min-h-screen flex items-center justify-center p-6 iso-grid relative z-10">
+        <div className="iso-card bg-gradient-to-br from-slate-800/90 to-slate-900/95 backdrop-blur-xl p-10 rounded-3xl max-w-xl w-full border border-slate-700/50 animate-fade-in-up">
           {/* 헤더 */}
           <div className="text-center mb-10">
             <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl mb-4 shadow-lg">
@@ -564,8 +564,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   // ============ 방 관리 화면 ============
   if (!gameState || !selectedRoom) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-6 iso-grid">
-        <div className="iso-card bg-gradient-to-br from-slate-800/90 to-slate-900/95 p-10 rounded-3xl text-center border border-slate-700/50">
+      <div className="min-h-screen flex items-center justify-center p-6 iso-grid relative z-10">
+        <div className="iso-card bg-gradient-to-br from-slate-800/90 to-slate-900/95 p-10 rounded-3xl text-center border border-slate-700/50 animate-fade-in-up">
           <div className="w-16 h-16 mx-auto mb-4 rounded-full border-4 border-indigo-500/30 border-t-indigo-500 animate-spin"></div>
           <p className="text-xl font-bold text-white mb-2">게임 데이터 로딩 중...</p>
           <p className="text-sm text-slate-400 mb-6">잠시만 기다려주세요</p>
@@ -593,7 +593,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     });
 
     return (
-      <div className="min-h-screen p-6 iso-grid">
+      <div className="min-h-screen p-6 iso-grid relative z-10">
         <div className="max-w-3xl mx-auto">
           <button
             onClick={() => setView('room-list')}
@@ -653,7 +653,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   // 게임 시작 전 대기
   if (gameState.currentStatus === GameStatus.IDLE || gameState.currentStatus === GameStatus.READY) {
     return (
-      <div className="min-h-screen p-6 iso-grid">
+      <div className="min-h-screen p-6 iso-grid relative z-10">
         <div className="max-w-3xl mx-auto">
           <button
             onClick={() => setView('room-list')}
@@ -701,7 +701,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
 
   // ============ 메인 관리 대시보드 ============
   return (
-    <div className="min-h-screen p-4 md:p-6 iso-grid overflow-auto">
+    <div className="min-h-screen p-4 md:p-6 iso-grid overflow-auto relative z-10">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* 상단 헤더 */}
         <header className="iso-card bg-gradient-to-r from-slate-800/90 to-slate-900/95 p-6 rounded-2xl border border-slate-700/50">

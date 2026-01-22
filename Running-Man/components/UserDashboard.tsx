@@ -80,9 +80,9 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
   }, [totalAssets]);
 
   return (
-    <div className="min-h-screen flex flex-col iso-grid">
+    <div className="min-h-screen flex flex-col iso-grid relative z-10">
       {/* 상단 헤더 */}
-      <header className="bg-gradient-to-r from-slate-800/95 to-slate-900/95 backdrop-blur-xl p-4 md:p-6 border-b border-slate-700/50 sticky top-0 z-40">
+      <header className="bg-gradient-to-r from-slate-800/95 to-slate-900/95 backdrop-blur-xl p-4 md:p-6 border-b border-slate-700/50 sticky top-0 z-40 animate-fade-in-up">
         <div className="max-w-4xl mx-auto">
           {/* 팀 정보 & 상태 */}
           <div className="flex justify-between items-center mb-4">

@@ -1,7 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { Role, Room } from '../types';
-import { BACKGROUND_IMAGE_URL } from '../constants';
 import { subscribeToRooms, isFirebaseReady, getFirebaseError } from '../firebase';
 
 interface LoginProps {
@@ -85,20 +84,9 @@ const Login: React.FC<LoginProps> = ({ onLogin, onAdminAccess }) => {
   };
 
   return (
-    <div
-      className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden"
-      style={{
-        backgroundImage: `url(${BACKGROUND_IMAGE_URL})`,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        backgroundRepeat: 'no-repeat'
-      }}
-    >
-      {/* 배경 오버레이 */}
-      <div className="absolute inset-0 bg-gradient-to-br from-slate-900/80 via-indigo-900/60 to-slate-900/80 backdrop-blur-sm"></div>
-
+    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden iso-grid">
       {/* 메인 로그인 카드 */}
-      <div className="iso-card bg-gradient-to-br from-slate-800/95 to-slate-900/98 backdrop-blur-xl rounded-3xl p-8 md:p-12 max-w-md w-full text-center border border-slate-700/50 relative z-10">
+      <div className="iso-card bg-gradient-to-br from-slate-800/95 to-slate-900/98 backdrop-blur-xl rounded-3xl p-8 md:p-12 max-w-md w-full text-center border border-slate-700/50 relative z-10 animate-fade-in-up">
         {/* 로고 영역 */}
         <div className="mb-8 flex flex-col items-center">
           <div className="relative mb-4">

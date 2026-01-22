@@ -5,6 +5,7 @@ import { STOCK_DATA, ADMIN_PASSWORD } from './constants';
 import AdminDashboard from './components/AdminDashboard';
 import UserDashboard from './components/UserDashboard';
 import Login from './components/Login';
+import FullScreenButton from './components/FullScreenButton';
 import { subscribeToRoom, updateRoomGameState, joinTeam, isFirebaseReady, getRoom } from './firebase';
 
 type AppView = 'login' | 'admin' | 'user';
@@ -116,7 +117,13 @@ const App: React.FC = () => {
   const myTeam = gameState?.teams.find(t => t.id === currentTeamId);
 
   return (
-    <div className="min-h-screen bg-slate-900 text-white flex flex-col font-sans selection:bg-indigo-500/30">
+    <div className="min-h-screen text-white flex flex-col font-sans selection:bg-indigo-500/30">
+      {/* 통합 배경 */}
+      <div className="app-background" />
+
+      {/* 전체화면 버튼 */}
+      <FullScreenButton />
+
       {view === 'login' && (
         <Login
           onLogin={handleLogin}
@@ -137,8 +144,8 @@ const App: React.FC = () => {
       )}
 
       {view === 'user' && (!gameState || !myTeam) && (
-        <div className="flex-1 flex items-center justify-center iso-grid">
-          <div className="iso-card bg-gradient-to-br from-slate-800/90 to-slate-900/95 p-10 rounded-3xl text-center border border-slate-700/50 max-w-md">
+        <div className="flex-1 flex items-center justify-center iso-grid relative z-10">
+          <div className="iso-card bg-gradient-to-br from-slate-800/90 to-slate-900/95 p-10 rounded-3xl text-center border border-slate-700/50 max-w-md animate-fade-in-up">
             {isJoining ? (
               <>
                 <div className="w-16 h-16 mx-auto mb-4 rounded-full border-4 border-indigo-500/30 border-t-indigo-500 animate-spin"></div>
@@ -147,7 +154,7 @@ const App: React.FC = () => {
               </>
             ) : joinError ? (
               <>
-                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-rose-500/20 flex items-center justify-center">
+                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-rose-500/20 flex items-center justify-center animate-bounce-soft">
                   <svg className="w-8 h-8 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                   </svg>
@@ -156,7 +163,7 @@ const App: React.FC = () => {
                 <p className="text-sm text-rose-300 mb-4">{joinError}</p>
                 <button
                   onClick={handleLogout}
-                  className="mt-4 px-6 py-3 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-500 transition-colors"
+                  className="btn-3d mt-4 px-6 py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold"
                 >
                   다시 시도하기
                 </button>
