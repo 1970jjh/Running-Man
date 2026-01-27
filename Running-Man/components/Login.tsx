@@ -180,9 +180,9 @@ const Login: React.FC<LoginProps> = ({ onLogin, onAdminAccess }) => {
                 </span>
               </div>
               <img
-                src="https://i.ibb.co/tFytdkx/JJ-CREATIVE-CI-2.png"
-                alt="JJ CREATIVE"
-                className="h-8 opacity-60"
+                src="https://i.ibb.co/Ld5j0Mg6/JJ-CREATIVE-CI-2.png"
+                alt="JJ CREATIVE 교육연구소"
+                className="h-14 opacity-80"
               />
             </div>
           </div>
