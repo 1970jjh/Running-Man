@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { GameState, Team, Stock, GameStep } from '../types';
-import { MAX_INVESTMENT_RATIO } from '../constants';
+import { getMaxInvestmentRatio } from '../constants';
 import { TradeRequest } from '../firebase';
 
 interface InvestmentModuleProps {
@@ -20,8 +20,9 @@ const InvestmentModule: React.FC<InvestmentModuleProps> = ({ gameState, myTeam, 
   // 현재 라운드의 주가 인덱스 (prices[0]=2010=1R, prices[1]=1R결과=2R, ...)
   const currentRoundIdx = gameState.currentRound - 1;
 
-  // 한 종목당 최대 투자 가능 금액 (총 자산의 30%)
-  const maxInvestablePerStock = totalAssets * MAX_INVESTMENT_RATIO;
+  // 한 종목당 최대 투자 가능 금액 (라운드별 비율)
+  const investmentRatio = getMaxInvestmentRatio(gameState.currentRound);
+  const maxInvestablePerStock = totalAssets * investmentRatio;
 
   // 선택한 종목의 현재 투자 금액
   const currentInvested = useMemo(() => {
@@ -161,7 +162,7 @@ const InvestmentModule: React.FC<InvestmentModuleProps> = ({ gameState, myTeam, 
           )}
         </div>
         <p className="text-xs text-slate-400 mt-2">
-          💡 한 종목당 총 자산의 <span className="text-amber-300 font-bold">30%</span>까지 투자 가능
+          💡 한 종목당 총 자산의 <span className="text-amber-300 font-bold">{(investmentRatio * 100).toFixed(0)}%</span>까지 투자 가능
           <span className="ml-2 text-slate-500">(최대 {maxInvestablePerStock.toLocaleString()}원)</span>
         </p>
       </div>
@@ -309,7 +310,7 @@ const InvestmentModule: React.FC<InvestmentModuleProps> = ({ gameState, myTeam, 
                 <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
                 </svg>
-                30% 한도 초과!
+                {(investmentRatio * 100).toFixed(0)}% 한도 초과!
               </p>
             )}
           </div>
@@ -446,7 +447,7 @@ const InvestmentModule: React.FC<InvestmentModuleProps> = ({ gameState, myTeam, 
               </div>
               <h4 className="text-xl font-black text-white mb-2">투자 한도 초과!</h4>
               <p className="text-sm text-slate-400">
-                한 종목당 총 자산의 <span className="text-rose-400 font-bold">30%</span>까지만 투자할 수 있습니다.
+                한 종목당 총 자산의 <span className="text-rose-400 font-bold">{(investmentRatio * 100).toFixed(0)}%</span>까지만 투자할 수 있습니다.
               </p>
             </div>
             <button
