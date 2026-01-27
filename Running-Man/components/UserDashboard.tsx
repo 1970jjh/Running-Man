@@ -703,12 +703,9 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
                 {gameState.currentStep === GameStep.RESULT && '📊'}
               </span>
             </div>
-            <h2 className="text-2xl font-black text-white mb-2">단계 변경!</h2>
-            <p className="text-3xl font-black text-indigo-400 mb-4">
+            <h2 className="text-2xl font-black text-indigo-300 mb-2">{gameState.currentRound}R</h2>
+            <p className="text-3xl font-black text-white mb-6">
               {STEP_NAMES[gameState.currentStep]}
-            </p>
-            <p className="text-sm text-slate-400 mb-6">
-              Round {gameState.currentRound}의 새로운 단계가 시작되었습니다.
             </p>
             <button
               onClick={() => setShowStepNotification(false)}
