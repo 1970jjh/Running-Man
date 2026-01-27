@@ -1128,9 +1128,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               {/* 결과발표 버튼 */}
               <button
                 onClick={revealResults}
-                disabled={!gameState.isInvestmentConfirmed}
+                disabled={!gameState.isInvestmentConfirmed || gameState.currentStep !== GameStep.RESULT}
                 className={`w-full py-4 rounded-xl font-bold transition-all ${
-                  gameState.isInvestmentConfirmed && !gameState.revealedResults
+                  gameState.isInvestmentConfirmed && gameState.currentStep === GameStep.RESULT && !gameState.revealedResults
                     ? 'btn-3d bg-gradient-to-r from-purple-500 to-pink-500 text-white animate-pulse-glow'
                     : gameState.revealedResults
                       ? 'btn-3d bg-gradient-to-r from-emerald-500 to-teal-500 text-white hover:from-emerald-600 hover:to-teal-600'
