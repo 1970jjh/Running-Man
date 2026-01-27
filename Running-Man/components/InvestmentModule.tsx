@@ -14,6 +14,7 @@ const InvestmentModule: React.FC<InvestmentModuleProps> = ({ gameState, myTeam, 
   const [selectedStock, setSelectedStock] = useState<Stock | null>(null);
   const [qty, setQty] = useState(0);
   const [showLimitWarning, setShowLimitWarning] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false); // 거래 처리 중 상태
 
   // 현재 라운드의 주가 인덱스
   const currentRoundIdx = gameState.currentRound;
@@ -44,8 +45,8 @@ const InvestmentModule: React.FC<InvestmentModuleProps> = ({ gameState, myTeam, 
                           gameState.isInvestmentLocked;
 
   // 매수
-  const handleBuy = () => {
-    if (!selectedStock || isTradeDisabled || qty <= 0) return;
+  const handleBuy = async () => {
+    if (!selectedStock || isTradeDisabled || qty <= 0 || isProcessing) return;
 
     const price = selectedStock.prices[currentRoundIdx];
     const totalCost = qty * price;
@@ -61,24 +62,35 @@ const InvestmentModule: React.FC<InvestmentModuleProps> = ({ gameState, myTeam, 
       return;
     }
 
-    setGameState(prev => ({
-      ...prev,
-      teams: prev.teams.map(t => t.id === myTeam.id ? {
-        ...t,
-        currentCash: t.currentCash - totalCost,
-        portfolio: {
-          ...t.portfolio,
-          [selectedStock.id]: (t.portfolio[selectedStock.id] || 0) + qty
-        }
-      } : t)
-    }));
-    setQty(0);
-    setSelectedStock(null);
+    // 거래 처리 중 상태로 변경
+    setIsProcessing(true);
+
+    try {
+      await setGameState(prev => ({
+        ...prev,
+        teams: prev.teams.map(t => t.id === myTeam.id ? {
+          ...t,
+          currentCash: t.currentCash - totalCost,
+          portfolio: {
+            ...t.portfolio,
+            [selectedStock.id]: (t.portfolio[selectedStock.id] || 0) + qty
+          }
+        } : t)
+      }));
+      setQty(0);
+      setSelectedStock(null);
+    } catch (error) {
+      console.error('매수 처리 실패:', error);
+      alert('거래 처리 중 오류가 발생했습니다. 다시 시도해주세요.');
+    } finally {
+      // Firebase 구독이 업데이트를 반영할 시간을 줌
+      setTimeout(() => setIsProcessing(false), 500);
+    }
   };
 
   // 매도
-  const handleSell = () => {
-    if (!selectedStock || isTradeDisabled || qty <= 0) return;
+  const handleSell = async () => {
+    if (!selectedStock || isTradeDisabled || qty <= 0 || isProcessing) return;
 
     const price = selectedStock.prices[currentRoundIdx];
     const currentQty = myTeam.portfolio[selectedStock.id] || 0;
@@ -88,19 +100,30 @@ const InvestmentModule: React.FC<InvestmentModuleProps> = ({ gameState, myTeam, 
       return;
     }
 
-    setGameState(prev => ({
-      ...prev,
-      teams: prev.teams.map(t => t.id === myTeam.id ? {
-        ...t,
-        currentCash: t.currentCash + (qty * price),
-        portfolio: {
-          ...t.portfolio,
-          [selectedStock.id]: currentQty - qty
-        }
-      } : t)
-    }));
-    setQty(0);
-    setSelectedStock(null);
+    // 거래 처리 중 상태로 변경
+    setIsProcessing(true);
+
+    try {
+      await setGameState(prev => ({
+        ...prev,
+        teams: prev.teams.map(t => t.id === myTeam.id ? {
+          ...t,
+          currentCash: t.currentCash + (qty * price),
+          portfolio: {
+            ...t.portfolio,
+            [selectedStock.id]: currentQty - qty
+          }
+        } : t)
+      }));
+      setQty(0);
+      setSelectedStock(null);
+    } catch (error) {
+      console.error('매도 처리 실패:', error);
+      alert('거래 처리 중 오류가 발생했습니다. 다시 시도해주세요.');
+    } finally {
+      // Firebase 구독이 업데이트를 반영할 시간을 줌
+      setTimeout(() => setIsProcessing(false), 500);
+    }
   };
 
   // 최대 매수 가능 수량 계산
@@ -333,29 +356,37 @@ const InvestmentModule: React.FC<InvestmentModuleProps> = ({ gameState, myTeam, 
             </div>
           )}
 
+          {/* 거래 처리 중 표시 */}
+          {isProcessing && (
+            <div className="mb-4 p-3 rounded-lg bg-amber-500/20 border border-amber-500/30 flex items-center justify-center gap-2">
+              <div className="w-4 h-4 border-2 border-amber-400 border-t-transparent rounded-full animate-spin"></div>
+              <span className="text-amber-300 font-bold text-sm">거래 처리 중...</span>
+            </div>
+          )}
+
           {/* 매수/매도 버튼 */}
           <div className="grid grid-cols-2 gap-2 md:gap-4">
             <button
-              disabled={isTradeDisabled || qty <= 0 || isOverLimit}
+              disabled={isTradeDisabled || qty <= 0 || isOverLimit || isProcessing}
               onClick={handleBuy}
               className={`py-3 md:py-4 rounded-lg font-bold text-base md:text-lg transition-all ${
-                isTradeDisabled || qty <= 0 || isOverLimit
+                isTradeDisabled || qty <= 0 || isOverLimit || isProcessing
                   ? 'bg-slate-700/50 text-slate-500 cursor-not-allowed'
                   : 'btn-3d bg-gradient-to-r from-rose-500 to-rose-600 text-white'
               }`}
             >
-              매수
+              {isProcessing ? '처리중...' : '매수'}
             </button>
             <button
-              disabled={isTradeDisabled || qty <= 0 || (myTeam.portfolio[selectedStock.id] || 0) < qty}
+              disabled={isTradeDisabled || qty <= 0 || (myTeam.portfolio[selectedStock.id] || 0) < qty || isProcessing}
               onClick={handleSell}
               className={`py-3 md:py-4 rounded-lg font-bold text-base md:text-lg transition-all ${
-                isTradeDisabled || qty <= 0 || (myTeam.portfolio[selectedStock.id] || 0) < qty
+                isTradeDisabled || qty <= 0 || (myTeam.portfolio[selectedStock.id] || 0) < qty || isProcessing
                   ? 'bg-slate-700/50 text-slate-500 cursor-not-allowed'
                   : 'btn-3d bg-gradient-to-r from-blue-500 to-blue-600 text-white'
               }`}
             >
-              매도
+              {isProcessing ? '처리중...' : '매도'}
             </button>
           </div>
 

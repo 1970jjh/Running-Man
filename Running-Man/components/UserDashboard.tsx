@@ -421,22 +421,29 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
 
                 return (
                   <div className="iso-card bg-gradient-to-br from-slate-800/90 to-slate-900/95 rounded-2xl p-5 border border-slate-700/50">
-                    <h3 className="text-lg font-black text-white mb-4 flex items-center gap-2">
-                      <span className="text-2xl">📊</span>
+                    {/* 시드머니 기준 안내 */}
+                    <div className="mb-4 p-2 rounded-lg bg-indigo-500/20 border border-indigo-500/30">
+                      <p className="text-indigo-300 text-xs font-medium text-center">
+                        💰 시드머니: <span className="font-bold">1,000만원</span> 기준
+                      </p>
+                    </div>
+
+                    <h3 className="text-base font-black text-white mb-3 flex items-center gap-2">
+                      <span className="text-xl">📊</span>
                       라운드별 수익률
                     </h3>
 
-                    <div className="flex items-end gap-4 h-40 p-4 bg-slate-700/30 rounded-xl">
+                    <div className="flex items-end gap-3 h-36 p-3 bg-slate-700/30 rounded-xl">
                       {visibleResults.map((result, idx) => {
                         const maxRate = Math.max(...visibleResults.map(r => Math.abs(r.profitRate)), 10);
                         const height = Math.min(100, (Math.abs(result.profitRate) / maxRate) * 100);
 
                         return (
                           <div key={idx} className="flex-1 flex flex-col items-center">
-                            <span className={`text-xs font-bold mb-2 ${result.profitRate >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                            <span className={`text-[10px] font-bold mb-1 ${result.profitRate >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                               {result.profitRate >= 0 ? '+' : ''}{result.profitRate.toFixed(1)}%
                             </span>
-                            <div className="w-full flex flex-col justify-end h-24">
+                            <div className="w-full flex flex-col justify-end h-20">
                               <div
                                 className={`w-full rounded-t-lg transition-all ${
                                   result.profitRate >= 0
@@ -446,23 +453,40 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
                                 style={{ height: `${height}%` }}
                               />
                             </div>
-                            <span className="text-xs text-slate-400 mt-2 font-bold">R{result.round}</span>
+                            <span className="text-[10px] text-slate-400 mt-1 font-bold">R{result.round}</span>
                           </div>
                         );
                       })}
                     </div>
 
-                    {/* 누적 수익률 */}
-                    <div className="mt-4 p-4 rounded-xl bg-slate-700/30 text-center">
-                      <p className="text-xs text-slate-400 uppercase font-bold mb-1">누적 수익률</p>
-                      <p className={`text-3xl font-black font-display ${
-                        (visibleResults[visibleResults.length - 1]?.cumulativeProfitRate || 0) >= 0
-                          ? 'text-emerald-400'
-                          : 'text-rose-400'
-                      }`}>
-                        {(visibleResults[visibleResults.length - 1]?.cumulativeProfitRate || 0) >= 0 ? '+' : ''}
-                        {(visibleResults[visibleResults.length - 1]?.cumulativeProfitRate || 0).toFixed(1)}%
-                      </p>
+                    {/* 라운드별 & 누적 수익률 분리 표시 */}
+                    <div className="mt-4 grid grid-cols-2 gap-3">
+                      {/* 마지막 라운드 수익률 */}
+                      <div className="p-3 rounded-lg bg-slate-700/30 text-center">
+                        <p className="text-[10px] text-slate-400 uppercase font-bold mb-1">
+                          R{visibleResults[visibleResults.length - 1]?.round} 수익률
+                        </p>
+                        <p className={`text-xl font-black font-display ${
+                          (visibleResults[visibleResults.length - 1]?.profitRate || 0) >= 0
+                            ? 'text-emerald-400'
+                            : 'text-rose-400'
+                        }`}>
+                          {(visibleResults[visibleResults.length - 1]?.profitRate || 0) >= 0 ? '+' : ''}
+                          {(visibleResults[visibleResults.length - 1]?.profitRate || 0).toFixed(1)}%
+                        </p>
+                      </div>
+                      {/* 누적 수익률 */}
+                      <div className="p-3 rounded-lg bg-indigo-500/20 border border-indigo-500/30 text-center">
+                        <p className="text-[10px] text-indigo-300 uppercase font-bold mb-1">총 누적 수익률</p>
+                        <p className={`text-xl font-black font-display ${
+                          (visibleResults[visibleResults.length - 1]?.cumulativeProfitRate || 0) >= 0
+                            ? 'text-indigo-400'
+                            : 'text-rose-400'
+                        }`}>
+                          {(visibleResults[visibleResults.length - 1]?.cumulativeProfitRate || 0) >= 0 ? '+' : ''}
+                          {(visibleResults[visibleResults.length - 1]?.cumulativeProfitRate || 0).toFixed(1)}%
+                        </p>
+                      </div>
                     </div>
                   </div>
                 );
