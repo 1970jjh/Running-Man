@@ -199,14 +199,20 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
           }, 0);
 
           const newCash = team.currentCash + portfolioValue;
-          const profitRate = ((newCash - INITIAL_SEED_MONEY) / INITIAL_SEED_MONEY) * 100;
+          // 라운드 시작 자산 = 이전 라운드 결과의 totalValue, 없으면 시드머니
+          const prevResult = team.roundResults.length > 0
+            ? team.roundResults[team.roundResults.length - 1]
+            : null;
+          const roundStartAssets = prevResult ? prevResult.totalValue : INITIAL_SEED_MONEY;
+          const profitRate = ((newCash - roundStartAssets) / roundStartAssets) * 100;
+          const cumulativeProfitRate = ((newCash - INITIAL_SEED_MONEY) / INITIAL_SEED_MONEY) * 100;
 
           const newRoundResult = {
             round: roundIdx,
             portfolioValue,
             totalValue: newCash,
             profitRate,
-            cumulativeProfitRate: profitRate
+            cumulativeProfitRate
           };
 
           return {
@@ -395,8 +401,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
           });
 
           const cashAfterSale = cashBeforeSale + portfolioValueAtNextRound;
-          const profitRate = ((cashAfterSale - INITIAL_SEED_MONEY) / INITIAL_SEED_MONEY) * 100;
-          const cumulativeProfitRate = profitRate;
+          // 라운드 시작 자산 = 이전 라운드 결과의 totalValue, 없으면 시드머니
+          const prevResult = team.roundResults.length > 0
+            ? team.roundResults[team.roundResults.length - 1]
+            : null;
+          const roundStartAssets = prevResult ? prevResult.totalValue : INITIAL_SEED_MONEY;
+          const profitRate = ((cashAfterSale - roundStartAssets) / roundStartAssets) * 100;
+          const cumulativeProfitRate = ((cashAfterSale - INITIAL_SEED_MONEY) / INITIAL_SEED_MONEY) * 100;
 
           const existingResults = team.roundResults.filter(r => r.round !== currentRound);
 
