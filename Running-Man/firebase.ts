@@ -332,10 +332,12 @@ export const subscribeToRooms = (
   }
 };
 
-// ========== 방 GameState 업데이트 ==========
+// ========== 방 GameState 업데이트 (Transaction 기반) ==========
+// updater 함수를 받아 Firebase의 최신 데이터를 읽고 변경사항을 적용
+// 이렇게 하면 관리자 업데이트가 사용자 거래 데이터를 덮어쓰지 않음
 export const updateRoomGameState = async (
   roomId: string,
-  gameState: GameState
+  updater: (current: GameState) => GameState
 ): Promise<boolean> => {
   if (!database) {
     console.error('Firebase가 초기화되지 않았습니다.');
@@ -344,7 +346,13 @@ export const updateRoomGameState = async (
 
   try {
     const gameStateRef = ref(database, `rooms/${roomId}/gameState`);
-    await set(gameStateRef, gameState);
+
+    await runTransaction(gameStateRef, (currentData) => {
+      if (!currentData) return currentData;
+      const currentState = normalizeGameState(currentData);
+      return updater(currentState);
+    });
+
     return true;
   } catch (error) {
     console.error('게임 상태 업데이트 오류:', error);
@@ -430,16 +438,15 @@ export const joinTeam = async (
     }
     team.members = members;
 
-    // 팀 배열 업데이트
-    const newTeams = [...teams];
-    newTeams[teamIndex] = team;
-
-    const newGameState = {
-      ...room.gameState,
-      teams: newTeams
-    };
-
-    const success = await updateRoomGameState(roomId, newGameState);
+    const updatedTeam = team;
+    const success = await updateRoomGameState(roomId, (current) => ({
+      ...current,
+      teams: current.teams.map((t, i) => i === teamIndex ? {
+        ...t,
+        leaderName: updatedTeam.leaderName,
+        members: updatedTeam.members
+      } : t)
+    }));
 
     if (success) {
       console.log(`✅ ${memberName}님이 Team ${teamNumber}에 입장했습니다.`);
