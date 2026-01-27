@@ -98,19 +98,29 @@ const Login: React.FC<LoginProps> = ({ onLogin, onAdminAccess }) => {
         {/* 로고 영역 */}
         <div className="mb-8 flex flex-col items-center">
           <div className="relative mb-4">
-            <div className="w-20 h-20 bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 rounded-2xl flex items-center justify-center shadow-2xl transform rotate-12 hover:rotate-0 transition-transform duration-500">
+            <div
+              className="w-20 h-20 flex items-center justify-center transform rotate-12 hover:rotate-0 transition-transform duration-500"
+              style={{
+                background: 'linear-gradient(135deg, #3b82f6, #6366f1, #8b5cf6)',
+                border: '3px solid #fff',
+                boxShadow: '4px 4px 0 #000'
+              }}
+            >
               <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/>
               </svg>
             </div>
-            <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-emerald-500 rounded-lg flex items-center justify-center animate-pulse">
+            <div
+              className="absolute -bottom-1 -right-1 w-6 h-6 flex items-center justify-center animate-pulse"
+              style={{ background: '#10b981', border: '2px solid #000' }}
+            >
               <span className="text-white text-xs font-bold">$</span>
             </div>
           </div>
-          <h1 className="text-3xl md:text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-white via-indigo-200 to-white mb-2">
+          <h1 className="text-3xl md:text-4xl font-black text-white mb-2">
             투자의 귀재들
           </h1>
-          <p className="text-indigo-300/70 text-xs font-semibold tracking-[0.3em] uppercase">
+          <p className="text-blue-400 text-xs font-semibold tracking-[0.3em] uppercase">
             Investment Simulator
           </p>
         </div>
@@ -152,7 +162,12 @@ const Login: React.FC<LoginProps> = ({ onLogin, onAdminAccess }) => {
                 setAdminPasswordError(false);
                 setStep('admin-login');
               }}
-              className="w-full bg-slate-700/50 hover:bg-slate-600/50 text-white font-bold py-4 rounded-2xl transition-all border-2 border-slate-600/50 hover:border-amber-500/50"
+              className="w-full text-white font-bold py-4 transition-all"
+              style={{
+                background: '#1e293b',
+                border: '3px solid #fff',
+                boxShadow: '4px 4px 0 #000'
+              }}
             >
               관리자 입장
             </button>
@@ -300,7 +315,14 @@ const Login: React.FC<LoginProps> = ({ onLogin, onAdminAccess }) => {
         {!loading && step === 'admin-login' && (
           <div className="space-y-5">
             <div className="mb-6">
-              <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-amber-500 to-orange-600 rounded-2xl flex items-center justify-center shadow-lg">
+              <div
+                className="w-16 h-16 mx-auto mb-4 flex items-center justify-center"
+                style={{
+                  background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
+                  border: '3px solid #fff',
+                  boxShadow: '4px 4px 0 #000'
+                }}
+              >
                 <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
                 </svg>
@@ -331,9 +353,10 @@ const Login: React.FC<LoginProps> = ({ onLogin, onAdminAccess }) => {
                     handleAdminPasswordSubmit();
                   }
                 }}
-                className={`w-full px-5 py-4 rounded-2xl bg-slate-700/50 border-2 text-white placeholder-slate-400 focus:bg-slate-700/80 outline-none transition-all font-medium text-center text-xl tracking-widest ${
-                  adminPasswordError ? 'border-rose-500/50' : 'border-slate-600/50 focus:border-amber-500'
+                className={`w-full px-5 py-4 bg-black text-white placeholder-slate-400 outline-none transition-all font-medium text-center text-xl tracking-widest ${
+                  adminPasswordError ? 'border-rose-500' : 'border-white focus:border-blue-500'
                 }`}
+                style={{ border: adminPasswordError ? '3px solid #ef4444' : '3px solid #fff' }}
                 autoFocus
               />
               <div className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500">
@@ -347,11 +370,14 @@ const Login: React.FC<LoginProps> = ({ onLogin, onAdminAccess }) => {
             <button
               onClick={handleAdminPasswordSubmit}
               disabled={!adminPassword.trim()}
-              className={`btn-3d w-full text-white font-bold py-4 rounded-2xl transition-all text-lg tracking-wide ${
-                adminPassword.trim()
-                  ? 'bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500 hover:from-amber-400 hover:via-orange-400 hover:to-amber-400'
-                  : 'bg-slate-600 cursor-not-allowed'
-              }`}
+              className="btn-3d w-full font-bold py-4 transition-all text-lg tracking-wide"
+              style={{
+                background: adminPassword.trim() ? '#3b82f6' : '#475569',
+                color: '#fff',
+                cursor: adminPassword.trim() ? 'pointer' : 'not-allowed',
+                border: '3px solid #000',
+                boxShadow: '4px 4px 0 #000'
+              }}
             >
               관리자 입장
             </button>
