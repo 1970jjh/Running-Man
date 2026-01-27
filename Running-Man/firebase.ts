@@ -126,6 +126,7 @@ export const createDefaultGameState = (roomName: string, totalTeams: number, max
       unlockedCards: [],
       grantedInfoCount: 0,
       purchasedInfoCountPerRound: {},
+      transactionHistory: [], // 거래 내역 초기화
       roundResults: []
     });
   }

@@ -38,6 +38,21 @@ export interface InfoCard {
   isRevealed: boolean;
 }
 
+// 거래 내역 인터페이스
+export interface Transaction {
+  id: string;
+  round: number;
+  stockId: string;
+  stockName: string;
+  type: 'BUY' | 'SELL';
+  quantity: number;
+  pricePerShare: number;
+  totalAmount: number;
+  timestamp: number;
+  profitLoss?: number; // 매도 시 수익/손실
+  profitLossRate?: number; // 매도 시 수익률
+}
+
 export interface Team {
   id: string;
   number: number;
@@ -48,6 +63,7 @@ export interface Team {
   unlockedCards: string[];
   grantedInfoCount: number;
   purchasedInfoCountPerRound: { [round: string]: number };
+  transactionHistory: Transaction[]; // 거래 내역
   roundResults: {
     round: number;
     portfolioValue: number;

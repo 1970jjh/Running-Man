@@ -19,13 +19,11 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
   const [showStepNotification, setShowStepNotification] = useState(false);
   const prevStepRef = useRef<GameStep | null>(null);
 
-  // Step 변경 감지 및 알림 표시
+  // Step 변경 감지 및 알림 표시 (사용자가 확인 버튼을 누를 때까지 유지)
   useEffect(() => {
     if (prevStepRef.current !== null && prevStepRef.current !== gameState.currentStep) {
       setShowStepNotification(true);
-      // 5초 후 자동 닫기
-      const timer = setTimeout(() => setShowStepNotification(false), 5000);
-      return () => clearTimeout(timer);
+      // 자동 닫기 없음 - 사용자가 '확인' 버튼을 눌러야만 닫힘
     }
     prevStepRef.current = gameState.currentStep;
   }, [gameState.currentStep]);
@@ -417,6 +415,74 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
                           </div>
                         );
                       })}
+                  </div>
+                )}
+              </div>
+
+              {/* 거래 내역 */}
+              <div className="iso-card bg-gradient-to-br from-slate-800/90 to-slate-900/95 rounded-2xl p-5 border border-slate-700/50">
+                <h3 className="text-lg font-black text-white mb-4 flex items-center gap-2">
+                  <span className="text-2xl">📜</span>
+                  거래 내역
+                  <span className="ml-auto text-xs text-slate-500 font-normal">
+                    {(myTeam.transactionHistory || []).length}건
+                  </span>
+                </h3>
+
+                {(myTeam.transactionHistory || []).length === 0 ? (
+                  <p className="text-center text-slate-400 py-8">거래 내역이 없습니다</p>
+                ) : (
+                  <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                    {[...(myTeam.transactionHistory || [])]
+                      .sort((a, b) => b.timestamp - a.timestamp)
+                      .map(tx => (
+                        <div
+                          key={tx.id}
+                          className={`p-3 rounded-xl flex items-center gap-3 ${
+                            tx.type === 'BUY'
+                              ? 'bg-rose-500/10 border border-rose-500/20'
+                              : 'bg-blue-500/10 border border-blue-500/20'
+                          }`}
+                        >
+                          {/* 거래 유형 */}
+                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                            tx.type === 'BUY' ? 'bg-rose-500/20' : 'bg-blue-500/20'
+                          }`}>
+                            <span className={`text-lg font-black ${tx.type === 'BUY' ? 'text-rose-400' : 'text-blue-400'}`}>
+                              {tx.type === 'BUY' ? '+' : '-'}
+                            </span>
+                          </div>
+
+                          {/* 거래 정보 */}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className={`text-xs font-bold px-2 py-0.5 rounded ${
+                                tx.type === 'BUY' ? 'bg-rose-500/20 text-rose-300' : 'bg-blue-500/20 text-blue-300'
+                              }`}>
+                                {tx.type === 'BUY' ? '매수' : '매도'}
+                              </span>
+                              <span className="font-bold text-white text-sm">{tx.stockName}</span>
+                              <span className="text-xs text-slate-500">R{tx.round}</span>
+                            </div>
+                            <p className="text-xs text-slate-400 mt-0.5">
+                              {tx.quantity}주 × {tx.pricePerShare.toLocaleString()}원
+                            </p>
+                          </div>
+
+                          {/* 거래 금액 & 손익 */}
+                          <div className="text-right flex-shrink-0">
+                            <p className={`font-bold text-sm ${tx.type === 'BUY' ? 'text-rose-400' : 'text-blue-400'}`}>
+                              {tx.type === 'BUY' ? '-' : '+'}{tx.totalAmount.toLocaleString()}원
+                            </p>
+                            {tx.type === 'SELL' && tx.profitLoss !== undefined && (
+                              <p className={`text-xs font-bold ${tx.profitLoss >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                {tx.profitLoss >= 0 ? '+' : ''}{tx.profitLoss.toLocaleString()}원
+                                <span className="ml-1">({tx.profitLossRate?.toFixed(1)}%)</span>
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
                   </div>
                 )}
               </div>
