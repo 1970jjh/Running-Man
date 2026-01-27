@@ -149,10 +149,11 @@ const App: React.FC = () => {
   const handleSetGameState: React.Dispatch<React.SetStateAction<GameState>> = async (action) => {
     if (!currentRoomId || !gameState) return;
 
-    const newState = typeof action === 'function' ? action(gameState) : action;
-    // 로컬 상태는 Firebase 구독에서 자동으로 업데이트됨
-    // setGameState(newState) 를 직접 호출하면 race condition 발생
-    const success = await updateRoomGameState(currentRoomId, newState);
+    const updater = typeof action === 'function'
+      ? (current: GameState) => (action as (prev: GameState) => GameState)(current)
+      : (_current: GameState) => action as GameState;
+
+    const success = await updateRoomGameState(currentRoomId, updater);
     if (!success) {
       console.error('Firebase 업데이트 실패');
     }

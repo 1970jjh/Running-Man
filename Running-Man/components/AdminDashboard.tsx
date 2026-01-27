@@ -142,28 +142,26 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     }
   };
 
-  // GameState 업데이트 (Firebase에 동기화)
-  const updateGameState = async (newState: GameState) => {
+  // GameState 업데이트 (Firebase Transaction 기반)
+  // updater 함수가 Firebase의 최신 데이터를 받아 변경사항만 적용
+  const updateGameState = async (updater: (current: GameState) => GameState) => {
     if (!selectedRoom) return;
-    setGameState(newState);
-    await updateRoomGameState(selectedRoom.id, newState);
+    await updateRoomGameState(selectedRoom.id, updater);
   };
 
   // 게임 시작
   const startGame = async () => {
     if (!gameState) return;
 
-    const newState: GameState = {
-      ...gameState,
+    await updateGameState((current) => ({
+      ...current,
       currentRound: 1,
       currentStatus: GameStatus.ROUND_1,
       currentStep: GameStep.MINI_GAME,
       completedSteps: [],
       isInvestmentLocked: true,
       revealedResults: false
-    };
-
-    await updateGameState(newState);
+    }));
   };
 
   // 단계 변경
@@ -172,60 +170,50 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
 
     const newCompletedSteps = steps.slice(0, stepIdx).map(s => s.key);
 
-    const newState: GameState = {
-      ...gameState,
+    await updateGameState((current) => ({
+      ...current,
       currentStep: step,
       completedSteps: newCompletedSteps,
-      // 결과발표 단계에서는 revealResults 함수를 통해 공개
       revealedResults: false
-    };
-
-    await updateGameState(newState);
-
-    // 결과발표 단계로 전환해도 자동으로 결과를 공개하지 않음
-    // 관리자가 '결과발표' 버튼을 눌러야 공개됨
+    }));
   };
 
   // 라운드 결과 계산 및 자동 매도
   const calculateRoundResults = async () => {
     if (!gameState) return;
 
-    const roundIdx = gameState.currentRound;
+    await updateGameState((current) => {
+      const roundIdx = current.currentRound;
 
-    const newState: GameState = {
-      ...gameState,
-      teams: gameState.teams.map(team => {
-        // 포트폴리오 평가액 계산
-        const portfolioValue = Object.entries(team.portfolio).reduce((sum, [stockId, qty]) => {
-          const stock = gameState.stocks.find(s => s.id === stockId);
-          const price = stock?.prices[roundIdx] || 0;
-          return sum + (qty * price);
-        }, 0);
+      return {
+        ...current,
+        teams: current.teams.map(team => {
+          const portfolioValue = Object.entries(team.portfolio).reduce((sum, [stockId, qty]) => {
+            const stock = current.stocks.find(s => s.id === stockId);
+            const price = stock?.prices[roundIdx] || 0;
+            return sum + (qty * price);
+          }, 0);
 
-        // 자동 매도: 주식을 모두 팔아 현금화
-        const newCash = team.currentCash + portfolioValue;
+          const newCash = team.currentCash + portfolioValue;
+          const profitRate = ((newCash - INITIAL_SEED_MONEY) / INITIAL_SEED_MONEY) * 100;
 
-        // 시드머니(1000만원) 기준 수익률 계산
-        const profitRate = ((newCash - INITIAL_SEED_MONEY) / INITIAL_SEED_MONEY) * 100;
+          const newRoundResult = {
+            round: roundIdx,
+            portfolioValue,
+            totalValue: newCash,
+            profitRate,
+            cumulativeProfitRate: profitRate
+          };
 
-        const newRoundResult = {
-          round: roundIdx,
-          portfolioValue,
-          totalValue: newCash,
-          profitRate,
-          cumulativeProfitRate: profitRate // 시드머니 기준 누적 수익률 = 현재 수익률
-        };
-
-        return {
-          ...team,
-          currentCash: newCash, // 매도 후 현금 업데이트
-          portfolio: {}, // 포트폴리오 초기화 (모든 주식 매도)
-          roundResults: [...team.roundResults, newRoundResult]
-        };
-      })
-    };
-
-    await updateGameState(newState);
+          return {
+            ...team,
+            currentCash: newCash,
+            portfolio: {},
+            roundResults: [...team.roundResults, newRoundResult]
+          };
+        })
+      };
+    });
   };
 
   // 다음 라운드
@@ -236,33 +224,31 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     const currentIdx = rounds.indexOf(gameState.currentStatus);
 
     if (currentIdx >= gameState.maxRounds) {
-      await updateGameState({ ...gameState, currentStatus: GameStatus.FINISHED });
+      await updateGameState((current) => ({ ...current, currentStatus: GameStatus.FINISHED }));
       return;
     }
 
     const nextStatus = rounds[currentIdx + 1];
 
-    const newState: GameState = {
-      ...gameState,
+    await updateGameState((current) => ({
+      ...current,
       currentStatus: nextStatus,
-      currentRound: gameState.currentRound + 1,
+      currentRound: current.currentRound + 1,
       currentStep: GameStep.MINI_GAME,
       completedSteps: [],
       isTimerRunning: false,
       isInvestmentLocked: true,
       isInvestmentConfirmed: false,
       revealedResults: false,
-      teams: gameState.teams.map(t => ({
+      teams: current.teams.map(t => ({
         ...t,
-        grantedInfoCount: 0, // 무료 구매권 초기화
+        grantedInfoCount: 0,
         purchasedInfoCountPerRound: {
           ...t.purchasedInfoCountPerRound,
-          [gameState.currentRound + 1]: 0
+          [current.currentRound + 1]: 0
         }
       }))
-    };
-
-    await updateGameState(newState);
+    }));
     setShowResultModal(false);
   };
 
@@ -270,16 +256,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   const grantInfo = async (teamId: string, count: number) => {
     if (!gameState) return;
 
-    const newState: GameState = {
-      ...gameState,
-      teams: gameState.teams.map(t =>
+    await updateGameState((current) => ({
+      ...current,
+      teams: current.teams.map(t =>
         t.id === teamId
           ? { ...t, grantedInfoCount: Math.max(0, t.grantedInfoCount + count) }
           : t
       )
-    };
-
-    await updateGameState(newState);
+    }));
   };
 
   // 타이머 관리
@@ -287,17 +271,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     let interval: NodeJS.Timeout;
     if (gameState?.isTimerRunning && gameState?.timerSeconds > 0) {
       interval = setInterval(async () => {
-        const newState: GameState = {
-          ...gameState,
-          timerSeconds: gameState.timerSeconds - 1
-        };
-
-        if (newState.timerSeconds === 0) {
-          newState.isTimerRunning = false;
-          newState.isInvestmentLocked = true;
-        }
-
-        await updateGameState(newState);
+        await updateGameState((current) => {
+          const newSeconds = current.timerSeconds - 1;
+          return {
+            ...current,
+            timerSeconds: newSeconds,
+            ...(newSeconds === 0 ? { isTimerRunning: false, isInvestmentLocked: true } : {})
+          };
+        });
       }, 1000);
     }
     return () => clearInterval(interval);
@@ -307,87 +288,71 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   const startInvestment = async () => {
     if (!gameState) return;
 
-    const newState: GameState = {
-      ...gameState,
+    await updateGameState((current) => ({
+      ...current,
       timerSeconds: timerInput,
       timerMaxSeconds: timerInput,
       isTimerRunning: true,
       isInvestmentLocked: false
-    };
-
-    await updateGameState(newState);
+    }));
   };
 
   // 투자 잠금/해제
   const toggleInvestmentLock = async () => {
     if (!gameState) return;
 
-    const newState: GameState = {
-      ...gameState,
-      isInvestmentLocked: !gameState.isInvestmentLocked,
-      isTimerRunning: gameState.isInvestmentLocked
-    };
-
-    await updateGameState(newState);
+    await updateGameState((current) => ({
+      ...current,
+      isInvestmentLocked: !current.isInvestmentLocked,
+      isTimerRunning: current.isInvestmentLocked
+    }));
   };
 
   // 투자 확정 (다음 라운드 가격으로 수익률 계산 및 자동 매도)
   const confirmInvestment = async () => {
     if (!gameState) return;
 
-    const currentRound = gameState.currentRound;
-    const nextRound = currentRound + 1; // 다음 라운드 가격 사용
+    await updateGameState((current) => {
+      const currentRound = current.currentRound;
+      const nextRound = currentRound + 1;
 
-    // 각 팀의 수익률 계산 및 자동 매도
-    const newState: GameState = {
-      ...gameState,
-      isInvestmentLocked: true,
-      isTimerRunning: false,
-      isInvestmentConfirmed: true,
-      teams: gameState.teams.map(team => {
-        // 투자 전 현금 (투자에 사용하지 않은 현금)
-        const cashBeforeSale = team.currentCash;
+      return {
+        ...current,
+        isInvestmentLocked: true,
+        isTimerRunning: false,
+        isInvestmentConfirmed: true,
+        teams: current.teams.map(team => {
+          const cashBeforeSale = team.currentCash;
 
-        // 포트폴리오를 다음 라운드 가격으로 평가 및 매도
-        const portfolioValueAtNextRound = Object.entries(team.portfolio).reduce((sum, [stockId, qty]) => {
-          const stock = gameState.stocks.find(s => s.id === stockId);
-          // 다음 라운드 가격으로 계산 (prices 배열은 0부터 시작하므로 nextRound 인덱스 사용)
-          const nextRoundPrice = stock?.prices[nextRound] || stock?.prices[currentRound] || 0;
-          return sum + (qty * nextRoundPrice);
-        }, 0);
+          const portfolioValueAtNextRound = Object.entries(team.portfolio).reduce((sum, [stockId, qty]) => {
+            const stock = current.stocks.find(s => s.id === stockId);
+            const nextRoundPrice = stock?.prices[nextRound] || stock?.prices[currentRound] || 0;
+            return sum + (qty * nextRoundPrice);
+          }, 0);
 
-        // 자동 매도 후 현금 = 기존 현금 + 다음 라운드 가격으로 매도한 금액
-        const cashAfterSale = cashBeforeSale + portfolioValueAtNextRound;
+          const cashAfterSale = cashBeforeSale + portfolioValueAtNextRound;
+          const profitRate = ((cashAfterSale - INITIAL_SEED_MONEY) / INITIAL_SEED_MONEY) * 100;
+          const cumulativeProfitRate = profitRate;
 
-        // 시드머니(1000만원) 기준 수익률 계산
-        const profitRate = ((cashAfterSale - INITIAL_SEED_MONEY) / INITIAL_SEED_MONEY) * 100;
+          const existingResults = team.roundResults.filter(r => r.round !== currentRound);
 
-        // 누적 수익률 계산
-        // 1R: 누적수익률 = 라운드수익률
-        // 2R~: 누적수익률 = (현재 총 자산 - 시드머니) / 시드머니 * 100
-        const cumulativeProfitRate = profitRate; // 매도 후 현금 기준이므로 동일
+          const newRoundResult = {
+            round: currentRound,
+            portfolioValue: portfolioValueAtNextRound,
+            totalValue: cashAfterSale,
+            profitRate,
+            cumulativeProfitRate
+          };
 
-        // 기존 roundResults에서 현재 라운드 결과가 있는지 확인
-        const existingResults = team.roundResults.filter(r => r.round !== currentRound);
-
-        const newRoundResult = {
-          round: currentRound,
-          portfolioValue: portfolioValueAtNextRound, // 다음 라운드 가격 기준 평가액
-          totalValue: cashAfterSale, // 매도 후 총 자산
-          profitRate, // 이번 라운드 수익률
-          cumulativeProfitRate // 누적 수익률
-        };
-
-        return {
-          ...team,
-          currentCash: cashAfterSale, // 자동 매도 후 현금 업데이트
-          portfolio: {}, // 포트폴리오 초기화 (자동 매도 완료)
-          roundResults: [...existingResults, newRoundResult]
-        };
-      })
-    };
-
-    await updateGameState(newState);
+          return {
+            ...team,
+            currentCash: cashAfterSale,
+            portfolio: {},
+            roundResults: [...existingResults, newRoundResult]
+          };
+        })
+      };
+    });
   };
 
   // 결과 발표 (사용자에게 공개)
@@ -401,10 +366,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
       return;
     }
 
-    await updateGameState({
-      ...gameState,
+    await updateGameState((current) => ({
+      ...current,
       revealedResults: true
-    });
+    }));
 
     setShowResultModal(true);
     setResultStep('stocks');
@@ -418,7 +383,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     const currentIdx = rounds.indexOf(gameState.currentStatus);
 
     if (currentIdx >= gameState.maxRounds) {
-      await updateGameState({ ...gameState, currentStatus: GameStatus.FINISHED });
+      await updateGameState((current) => ({ ...current, currentStatus: GameStatus.FINISHED }));
       setShowResultModal(false);
       return;
     }
@@ -426,28 +391,25 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     const nextStatus = rounds[currentIdx + 1];
 
     // 다음 라운드로 이동 (주식은 투자확정 시 이미 매도됨)
-    const newState: GameState = {
-      ...gameState,
+    await updateGameState((current) => ({
+      ...current,
       currentStatus: nextStatus,
-      currentRound: gameState.currentRound + 1,
+      currentRound: current.currentRound + 1,
       currentStep: GameStep.MINI_GAME,
       completedSteps: [],
       isTimerRunning: false,
       isInvestmentLocked: true,
       isInvestmentConfirmed: false,
       revealedResults: false,
-      teams: gameState.teams.map(team => ({
+      teams: current.teams.map(team => ({
         ...team,
-        // 포트폴리오는 투자확정 시 이미 비워짐
-        grantedInfoCount: 0, // 무료 구매권 초기화
+        grantedInfoCount: 0,
         purchasedInfoCountPerRound: {
           ...team.purchasedInfoCountPerRound,
-          [gameState.currentRound + 1]: 0
+          [current.currentRound + 1]: 0
         }
       }))
-    };
-
-    await updateGameState(newState);
+    }));
     setShowResultModal(false);
   };
 
