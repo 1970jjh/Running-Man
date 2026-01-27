@@ -368,19 +368,45 @@ const InvestmentModule: React.FC<InvestmentModuleProps> = ({ gameState, myTeam, 
             </div>
             <div className="flex items-center gap-2 w-full">
               <button
-                onClick={() => setQty(q => Math.max(0, q - 10))}
+                onClick={() => setQty(q => Math.max(0, q - 1))}
                 className="flex-shrink-0 w-12 h-12 rounded-lg bg-slate-700/50 text-white font-bold text-xl hover:bg-slate-700 transition-colors flex items-center justify-center"
               >
                 -
               </button>
               <input
                 type="number"
-                value={qty}
-                onChange={e => setQty(Math.max(0, Number(e.target.value)))}
+                value={qty || ''}
+                onChange={e => {
+                  const value = e.target.value;
+                  // 빈 문자열이면 0으로 설정
+                  if (value === '') {
+                    setQty(0);
+                    return;
+                  }
+                  // 숫자로 변환하여 앞의 0 자동 제거
+                  const numValue = parseInt(value, 10);
+                  setQty(Math.max(0, isNaN(numValue) ? 0 : numValue));
+                }}
+                onFocus={e => {
+                  // 포커스 시 0이면 빈 문자열로 변경하여 쉽게 입력 가능
+                  if (qty === 0) {
+                    e.target.value = '';
+                  }
+                }}
+                onBlur={() => {
+                  // 포커스 해제 시 빈 값이면 0으로 복원
+                  if (qty === 0) {
+                    setQty(0);
+                  }
+                }}
+                onWheel={e => {
+                  // 마우스 휠로 수량 변경 방지
+                  e.currentTarget.blur();
+                }}
                 className="flex-1 min-w-0 h-12 px-2 rounded-lg bg-slate-700/50 border-2 border-slate-600/50 text-white font-bold text-lg text-center outline-none focus:border-indigo-500"
               />
               <button
-                onClick={() => setQty(q => q + 10)}
+                onClick={() => setQty(q => q + 1)}
                 className="flex-shrink-0 w-12 h-12 rounded-lg bg-slate-700/50 text-white font-bold text-xl hover:bg-slate-700 transition-colors flex items-center justify-center"
               >
                 +
