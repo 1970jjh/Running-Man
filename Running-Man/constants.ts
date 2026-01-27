@@ -3,7 +3,16 @@ import { Stock, InfoCard } from './types';
 
 export const ADMIN_PASSWORD = '6749467';
 export const INITIAL_SEED_MONEY = 10000000; // 1000만원
-export const MAX_INVESTMENT_RATIO = 0.3; // 한 종목당 30%까지
+// 라운드별 한 종목당 최대 투자 비율
+export const MAX_INVESTMENT_RATIO_BY_ROUND: Record<number, number> = {
+  1: 0.3,  // 1R: 30%
+  2: 0.4,  // 2R: 40%
+  3: 0.5,  // 3R: 50%
+  4: 0.6,  // 4R: 60%
+};
+export const getMaxInvestmentRatio = (round: number): number => {
+  return MAX_INVESTMENT_RATIO_BY_ROUND[round] || 0.3;
+};
 export const MAX_PURCHASED_INFO_PER_ROUND = 10; // 라운드당 최대 10개 구매
 
 // 메인 배경 이미지 URL (직접 이미지 링크)

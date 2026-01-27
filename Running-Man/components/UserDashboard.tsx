@@ -19,13 +19,26 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
   const [viewingCard, setViewingCard] = useState<string | null>(null);
   const [showStepNotification, setShowStepNotification] = useState(false);
+  const [showTradeClosedPopup, setShowTradeClosedPopup] = useState(false);
   const prevStepRef = useRef<GameStep | null>(null);
+  const prevLockedRef = useRef<boolean>(false);
+
+  // 투자 잠금 감지 → 매매거래 시간마감 팝업
+  useEffect(() => {
+    if (gameState.currentStep === GameStep.INVESTMENT && gameState.isInvestmentLocked && !prevLockedRef.current) {
+      setShowTradeClosedPopup(true);
+    }
+    if (!gameState.isInvestmentLocked) {
+      setShowTradeClosedPopup(false);
+    }
+    prevLockedRef.current = gameState.isInvestmentLocked;
+  }, [gameState.isInvestmentLocked, gameState.currentStep]);
 
   // Step 변경 감지 및 알림 표시 (사용자가 확인 버튼을 누를 때까지 유지)
   useEffect(() => {
     if (prevStepRef.current !== null && prevStepRef.current !== gameState.currentStep) {
       setShowStepNotification(true);
-      // 자동 닫기 없음 - 사용자가 '확인' 버튼을 눌러야만 닫힘
+      setShowTradeClosedPopup(false); // step 변경 시 매매마감 팝업 닫기
     }
     prevStepRef.current = gameState.currentStep;
   }, [gameState.currentStep]);
@@ -721,6 +734,25 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
               className="mt-4 text-slate-400 hover:text-white text-sm font-semibold transition-colors"
             >
               탭하여 닫기
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 매매거래 시간마감 팝업 */}
+      {showTradeClosedPopup && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-fade-in">
+          <div className="iso-card bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-8 max-w-sm w-full border border-rose-500/50 text-center animate-scale-in">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-rose-500/20 flex items-center justify-center">
+              <span className="text-3xl">⏰</span>
+            </div>
+            <h3 className="text-xl font-black text-white mb-2">매매거래 시간마감</h3>
+            <p className="text-sm text-slate-400 mb-6">투자 시간이 종료되었습니다.<br/>더 이상 매매가 불가합니다.</p>
+            <button
+              onClick={() => setShowTradeClosedPopup(false)}
+              className="w-full py-3 rounded-xl font-bold btn-3d bg-gradient-to-r from-rose-500 to-pink-500 text-white"
+            >
+              확인
             </button>
           </div>
         </div>

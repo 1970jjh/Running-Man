@@ -549,11 +549,11 @@ export const executeTeamTrade = async (trade: TradeRequest): Promise<TradeResult
           return; // abort transaction
         }
 
-        // 30% 한도 확인
+        // 라운드별 한도 확인
         const currentQty = (currentTeam.portfolio && currentTeam.portfolio[trade.stockId]) || 0;
         const currentInvested = currentQty * trade.pricePerShare;
         if (currentInvested + totalCost > trade.maxInvestablePerStock) {
-          tradeError = '투자 한도(30%)를 초과합니다.';
+          tradeError = '투자 한도를 초과합니다.';
           return; // abort transaction
         }
 
