@@ -48,6 +48,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   // 투자 테이블 모달 상태
   const [showInvestmentTable, setShowInvestmentTable] = useState(false);
 
+  // 주가 정보 이미지 모달 상태
+  const [showStockPriceImage, setShowStockPriceImage] = useState(false);
+
   // Firebase 연결 상태 확인
   const firebaseConnected = isFirebaseReady();
 
@@ -390,6 +393,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   // 결과 발표 (사용자에게 공개)
   const revealResults = async () => {
     if (!gameState) return;
+
+    // 이미 결과가 공개된 경우 모달만 다시 표시
+    if (gameState.revealedResults) {
+      setShowResultModal(true);
+      setResultStep('stocks');
+      return;
+    }
 
     await updateGameState({
       ...gameState,
@@ -848,6 +858,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                 <span className="bg-slate-500/20 text-slate-300 px-3 py-1 rounded-full text-xs font-bold border border-slate-500/30">
                   {gameState.totalTeams} Teams
                 </span>
+                <button
+                  onClick={() => setShowStockPriceImage(true)}
+                  className="bg-amber-500/20 text-amber-300 px-3 py-1 rounded-full text-xs font-bold border border-amber-500/30 hover:bg-amber-500/30 transition-colors"
+                >
+                  📈 주가 정보
+                </button>
               </div>
             </div>
 
@@ -1038,16 +1054,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               {/* 결과발표 버튼 */}
               <button
                 onClick={revealResults}
-                disabled={!gameState.isInvestmentConfirmed || gameState.revealedResults}
+                disabled={!gameState.isInvestmentConfirmed}
                 className={`w-full py-4 rounded-xl font-bold transition-all ${
                   gameState.isInvestmentConfirmed && !gameState.revealedResults
                     ? 'btn-3d bg-gradient-to-r from-purple-500 to-pink-500 text-white animate-pulse-glow'
                     : gameState.revealedResults
-                      ? 'bg-emerald-500/20 text-emerald-300 border-2 border-emerald-500/30 cursor-not-allowed'
+                      ? 'btn-3d bg-gradient-to-r from-emerald-500 to-teal-500 text-white hover:from-emerald-600 hover:to-teal-600'
                       : 'bg-slate-700/50 text-slate-500 cursor-not-allowed'
                 }`}
               >
-                {gameState.revealedResults ? '✅ 결과 공개됨' : '📊 결과발표'}
+                {gameState.revealedResults ? '📊 결과 다시보기' : '📊 결과발표'}
               </button>
             </div>
           </div>
@@ -1820,6 +1836,48 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                 );
               })()}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 주가 정보 이미지 모달 */}
+      {showStockPriceImage && (
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+          <div className="relative max-w-5xl w-full max-h-[95vh] flex flex-col items-center">
+            {/* 닫기 버튼 */}
+            <button
+              onClick={() => setShowStockPriceImage(false)}
+              className="absolute -top-2 -right-2 z-20 w-12 h-12 rounded-full bg-slate-800 border border-slate-600/50 flex items-center justify-center text-white hover:bg-slate-700 transition-colors shadow-lg"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/>
+              </svg>
+            </button>
+
+            {/* 헤더 */}
+            <div className="mb-4 text-center">
+              <h2 className="text-xl font-black text-white flex items-center gap-2 justify-center">
+                📈 라운드별 주가 정보
+              </h2>
+              <p className="text-sm text-slate-400 mt-1">2010년(초기) ~ 2014년(4R) 주가 변동표</p>
+            </div>
+
+            {/* 이미지 */}
+            <div className="rounded-2xl overflow-hidden shadow-2xl border border-slate-700/50 bg-white">
+              <img
+                src="https://i.ibb.co/vvrqFZQL/image.png"
+                alt="투자의 귀재들 주가 정보"
+                className="max-w-full max-h-[80vh] object-contain"
+              />
+            </div>
+
+            {/* 하단 닫기 버튼 */}
+            <button
+              onClick={() => setShowStockPriceImage(false)}
+              className="mt-4 px-6 py-2 rounded-xl bg-slate-700/50 text-white font-bold hover:bg-slate-700 transition-colors"
+            >
+              닫기
+            </button>
           </div>
         </div>
       )}
