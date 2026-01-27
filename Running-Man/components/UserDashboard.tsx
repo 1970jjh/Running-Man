@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { GameState, Team, GameStatus, GameStep } from '../types';
 import InvestmentModule from './InvestmentModule';
-import { INFO_CARDS, getInfoPrice, MAX_PURCHASED_INFO_PER_ROUND, STEP_NAMES, INITIAL_SEED_MONEY } from '../constants';
+import { INFO_CARDS, STEP_NAMES, INITIAL_SEED_MONEY } from '../constants';
 
 interface UserDashboardProps {
   gameState: GameState;
@@ -37,37 +37,6 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
     }, 0);
     return myTeam.currentCash + stockValue;
   }, [myTeam, gameState.stocks, gameState.currentRound]);
-
-  // 현재 라운드 구매 개수
-  const currentRoundPurchased = myTeam.purchasedInfoCountPerRound[gameState.currentRound] || 0;
-
-  // 정보 구매 (현금)
-  const purchaseInfo = (cardId: string) => {
-    const price = getInfoPrice(gameState.currentRound);
-
-    if (myTeam.currentCash < price) {
-      alert('잔액이 부족합니다.');
-      return;
-    }
-    if (currentRoundPurchased >= MAX_PURCHASED_INFO_PER_ROUND) {
-      alert(`라운드당 최대 ${MAX_PURCHASED_INFO_PER_ROUND}개까지 구매 가능합니다.`);
-      return;
-    }
-
-    setGameState(prev => ({
-      ...prev,
-      teams: prev.teams.map(t => t.id === myTeam.id ? {
-        ...t,
-        currentCash: t.currentCash - price,
-        unlockedCards: [...t.unlockedCards, cardId],
-        purchasedInfoCountPerRound: {
-          ...t.purchasedInfoCountPerRound,
-          [gameState.currentRound]: (t.purchasedInfoCountPerRound[gameState.currentRound] || 0) + 1
-        }
-      } : t)
-    }));
-    setShowConfirmPopup(null);
-  };
 
   // 무료권 사용
   const useFreeInfo = (cardId: string) => {
@@ -205,30 +174,25 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
           {/* 정보 센터 탭 */}
           {activeTab === 'info' && (
             <div className="space-y-6">
-              {/* 정보 구매권 현황 */}
+              {/* 정보 열람권 현황 */}
               <div className="iso-card bg-gradient-to-br from-slate-800/90 to-slate-900/95 rounded-2xl p-5 border border-slate-700/50">
                 <div className="flex justify-between items-center">
                   <h3 className="text-lg font-black text-white flex items-center gap-2">
                     <span className="text-2xl">🎫</span>
-                    정보 구매권
+                    정보 열람권
                   </h3>
-                  <div className="flex gap-3 text-sm">
-                    <span className="bg-indigo-500/20 text-indigo-300 px-3 py-1 rounded-lg font-bold border border-indigo-500/30">
-                      무료권: {myTeam.grantedInfoCount}개
-                    </span>
-                    <span className="bg-amber-500/20 text-amber-300 px-3 py-1 rounded-lg font-bold border border-amber-500/30">
-                      유료 구매: {currentRoundPurchased}/{MAX_PURCHASED_INFO_PER_ROUND}
-                    </span>
-                  </div>
+                  <span className="bg-indigo-500/20 text-indigo-300 px-4 py-2 rounded-lg font-bold border border-indigo-500/30 text-lg">
+                    {myTeam.grantedInfoCount}개 보유
+                  </span>
                 </div>
                 <p className="text-xs text-slate-400 mt-2">
-                  💡 현재 라운드 구매 가격: <span className="text-amber-300 font-bold">{(getInfoPrice(gameState.currentRound) / 10000).toLocaleString()}만원</span>
+                  💡 미니게임 성공 시 무료 정보 열람권을 획득할 수 있습니다.
                 </p>
                 {/* 정보 구매 단계 안내 */}
                 {gameState.currentStep !== GameStep.INFO_PURCHASE && (
                   <div className="mt-3 p-3 rounded-xl bg-rose-500/10 border border-rose-500/30">
                     <p className="text-xs text-rose-300 font-medium">
-                      🔒 정보 구매는 <span className="font-bold">'정보구매'</span> 단계에서만 가능합니다.
+                      🔒 정보 열람은 <span className="font-bold">'정보구매'</span> 단계에서만 가능합니다.
                       <span className="block text-rose-400/70 mt-1">현재 단계: {STEP_NAMES[gameState.currentStep]}</span>
                     </p>
                   </div>
@@ -617,7 +581,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
         </button>
       </nav>
 
-      {/* 정보 구매 확인 팝업 */}
+      {/* 정보 열람 확인 팝업 */}
       {showConfirmPopup && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="iso-card bg-gradient-to-br from-slate-800 to-slate-900 p-6 rounded-3xl max-w-sm w-full border border-slate-700/50">
@@ -634,29 +598,22 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
             </div>
 
             <div className="space-y-3">
-              {myTeam.grantedInfoCount > 0 && (
+              {myTeam.grantedInfoCount > 0 ? (
                 <button
                   onClick={() => useFreeInfo(showConfirmPopup)}
                   className="btn-3d w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold py-4 rounded-xl"
                 >
-                  🎫 무료권 사용 (잔여 {myTeam.grantedInfoCount}개)
+                  🎫 열람권 사용 (잔여 {myTeam.grantedInfoCount}개)
                 </button>
+              ) : (
+                <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-center">
+                  <p className="text-amber-300 font-bold text-sm">열람권이 없습니다</p>
+                  <p className="text-xs text-slate-400 mt-1">
+                    미니게임을 통해 열람권을 획득하거나<br/>
+                    다른 팀과 협상하여 정보를 얻으세요!
+                  </p>
+                </div>
               )}
-
-              <button
-                onClick={() => purchaseInfo(showConfirmPopup)}
-                disabled={currentRoundPurchased >= MAX_PURCHASED_INFO_PER_ROUND}
-                className={`w-full py-4 rounded-xl font-bold transition-all ${
-                  currentRoundPurchased >= MAX_PURCHASED_INFO_PER_ROUND
-                    ? 'bg-slate-700/50 text-slate-500 cursor-not-allowed'
-                    : 'bg-slate-700/50 text-white border-2 border-slate-600/50 hover:border-amber-500/50'
-                }`}
-              >
-                💰 현금 구매 ({(getInfoPrice(gameState.currentRound) / 10000).toLocaleString()}만원)
-                {currentRoundPurchased >= MAX_PURCHASED_INFO_PER_ROUND && (
-                  <span className="block text-xs text-rose-400 mt-1">라운드 구매 한도 초과</span>
-                )}
-              </button>
 
               <button
                 onClick={() => setShowConfirmPopup(null)}
