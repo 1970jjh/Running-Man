@@ -51,6 +51,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   // 주가 정보 이미지 모달 상태
   const [showStockPriceImage, setShowStockPriceImage] = useState(false);
 
+  // 팀 이름 수정 상태
+  const [editingTeamId, setEditingTeamId] = useState<string | null>(null);
+  const [editingTeamName, setEditingTeamName] = useState('');
+
   // Firebase 연결 상태 확인
   const firebaseConnected = isFirebaseReady();
 
@@ -264,6 +268,19 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
           : t
       )
     }));
+  };
+
+  // 팀 이름 수정
+  const saveTeamName = async (teamId: string) => {
+    if (!gameState || !editingTeamName.trim()) return;
+    await updateGameState((current) => ({
+      ...current,
+      teams: current.teams.map(t =>
+        t.id === teamId ? { ...t, teamName: editingTeamName.trim() } : t
+      )
+    }));
+    setEditingTeamId(null);
+    setEditingTeamName('');
   };
 
   // 타이머 관리
@@ -772,7 +789,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                       {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `${idx + 1}`}
                     </span>
                     <div className="flex-1">
-                      <p className="font-bold text-white">Team {team.number}</p>
+                      <p className="font-bold text-white">{team.teamName}</p>
                       <p className="text-sm text-slate-400">{team.leaderName || '참여자 없음'}</p>
                     </div>
                     <div className="text-right">
@@ -812,16 +829,59 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               <p className="text-slate-400">참여자를 기다리고 있습니다</p>
             </div>
 
-            {/* 팀 현황 */}
-            <div className="grid grid-cols-2 gap-3 mb-8">
+            {/* 팀 현황 및 이름 수정 */}
+            <div className="space-y-3 mb-8">
               {gameState.teams.map(team => (
                 <div key={team.id} className="p-4 rounded-xl bg-slate-700/30 border border-slate-600/30">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-white font-bold">
+                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-white font-bold flex-shrink-0">
                       {team.number}
                     </div>
-                    <div>
-                      <p className="font-bold text-white">Team {team.number}</p>
+                    <div className="flex-1 min-w-0">
+                      {editingTeamId === team.id ? (
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={editingTeamName}
+                            onChange={e => setEditingTeamName(e.target.value)}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') saveTeamName(team.id);
+                              if (e.key === 'Escape') setEditingTeamId(null);
+                            }}
+                            autoFocus
+                            className="flex-1 min-w-0 px-3 py-1.5 rounded-lg bg-slate-600/50 border border-indigo-500/50 text-white text-sm font-bold outline-none focus:border-indigo-400"
+                            placeholder="팀 이름 입력"
+                          />
+                          <button
+                            onClick={() => saveTeamName(team.id)}
+                            className="px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-500 flex-shrink-0"
+                          >
+                            저장
+                          </button>
+                          <button
+                            onClick={() => setEditingTeamId(null)}
+                            className="px-3 py-1.5 rounded-lg bg-slate-600 text-slate-300 text-xs font-bold hover:bg-slate-500 flex-shrink-0"
+                          >
+                            취소
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <p className="font-bold text-white truncate">{team.teamName}</p>
+                          <button
+                            onClick={() => {
+                              setEditingTeamId(team.id);
+                              setEditingTeamName(team.teamName);
+                            }}
+                            className="p-1 rounded text-slate-500 hover:text-indigo-400 transition-colors flex-shrink-0"
+                            title="팀 이름 수정"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+                            </svg>
+                          </button>
+                        </div>
+                      )}
                       <p className="text-xs text-slate-400">
                         {team.members.length > 0 ? `${team.members.length}명 참여` : '대기 중...'}
                       </p>
@@ -953,7 +1013,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                     {team.number}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-bold text-white truncate">Team {team.number}</p>
+                    <p className="font-bold text-white truncate">{team.teamName}</p>
                     <p className="text-xs text-slate-400 truncate">{team.leaderName || '대기 중...'}</p>
                   </div>
                   <div className="flex items-center gap-2">
@@ -1108,7 +1168,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                       {team.number}
                     </div>
                     <div className="flex-1">
-                      <p className="font-bold text-white">Team {team.number}</p>
+                      <p className="font-bold text-white">{team.teamName}</p>
                       <p className="text-xs text-slate-400">{team.leaderName || '대기 중...'}</p>
                     </div>
                     <div className="text-right">
@@ -1451,6 +1511,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
 
                             const report = await analyzeTeamPerformance({
                               teamNumber: team.number,
+                              teamName: team.teamName,
                               unlockedCards: team.unlockedCards,
                               roundResults: team.roundResults,
                               finalCash: team.currentCash,
@@ -1470,7 +1531,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                                 <span className="text-lg font-black text-slate-400 w-6">
                                   {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `${idx + 1}`}
                                 </span>
-                                <span className="font-bold text-white">Team {team.number}</span>
+                                <span className="font-bold text-white">{team.teamName}</span>
                               </div>
                               <div className="flex items-center gap-3">
                                 <div className="text-right">
@@ -1605,7 +1666,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                       </th>
                       {gameState.teams.map(team => (
                         <th key={team.id} className="bg-slate-800 p-3 text-center text-xs font-bold text-indigo-300 uppercase border-b border-slate-600/50 min-w-[80px]">
-                          {team.number}팀
+                          {team.teamName}
                         </th>
                       ))}
                     </tr>
