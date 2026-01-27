@@ -12,6 +12,7 @@ import {
   isFirebaseReady,
   getFirebaseError
 } from '../firebase';
+import analyzeTeamPerformance, { AnalysisReport } from '../gemini';
 
 interface AdminDashboardProps {
   onLogout: () => void;
@@ -38,6 +39,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   const [timerInput, setTimerInput] = useState(300);
   const [showResultModal, setShowResultModal] = useState(false);
   const [resultStep, setResultStep] = useState<'stocks' | 'teams'>('stocks');
+
+  // 분석 관련 상태
+  const [analysisReports, setAnalysisReports] = useState<{ [teamId: string]: AnalysisReport }>({});
+  const [analyzingTeamId, setAnalyzingTeamId] = useState<string | null>(null);
+  const [showAnalysisModal, setShowAnalysisModal] = useState<string | null>(null);
 
   // Firebase 연결 상태 확인
   const firebaseConnected = isFirebaseReady();
@@ -84,7 +90,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     { key: GameStep.INFO_PURCHASE, label: '정보구매', icon: '📊' },
     { key: GameStep.INFO_NEGOTIATION, label: '정보협상', icon: '🤝' },
     { key: GameStep.INVESTMENT, label: '투자', icon: '💰' },
-    { key: GameStep.RESULT, label: '결과발표', icon: '📈' }
+    { key: GameStep.RESULT, label: '결과발표 및 분석', icon: '📈' }
   ];
 
   const currentStepIndex = gameState ? steps.findIndex(s => s.key === gameState.currentStep) : -1;
@@ -1133,11 +1139,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
           <h3 className="text-lg font-black text-white mb-4 flex items-center gap-2">
             <span className="text-2xl">🃏</span>
             정보 카드 현황
-            <span className="ml-auto text-xs text-slate-500 font-normal">총 {INFO_CARDS.length}개</span>
+            <span className="ml-auto text-xs text-slate-500 font-normal">총 {INFO_CARDS.filter(c => c.categoryIndex === 0 || c.categoryIndex <= gameState.maxRounds).length}개</span>
           </h3>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
-            {[0, 1, 2, 3, 4].map(category => {
+            {[0, 1, 2, 3, 4]
+              .filter(cat => cat === 0 || cat <= gameState.maxRounds) // 설정된 라운드까지만 표시
+              .map(category => {
               const categoryCards = INFO_CARDS.filter(c => c.categoryIndex === category);
               const unlockedCount = categoryCards.filter(card =>
                 gameState.teams.some(t => t.unlockedCards.includes(card.id))
@@ -1389,7 +1397,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
 
                   {/* 팀별 상세 수익률 테이블 */}
                   <div className="p-4 rounded-xl bg-slate-700/30">
-                    <h4 className="text-sm font-bold text-slate-300 mb-3">🏆 팀별 상세 수익률</h4>
+                    <h4 className="text-sm font-bold text-slate-300 mb-3">🏆 팀별 상세 수익률 및 분석</h4>
                     <div className="space-y-2">
                       {[...gameState.teams]
                         .sort((a, b) => {
@@ -1402,6 +1410,29 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                           const totalValue = result?.totalValue || team.currentCash;
                           const roundRate = result?.profitRate || 0;
                           const cumulativeRate = result?.cumulativeProfitRate || 0;
+                          const hasReport = !!analysisReports[team.id];
+                          const isAnalyzing = analyzingTeamId === team.id;
+
+                          const handleAnalyze = async () => {
+                            setAnalyzingTeamId(team.id);
+                            const stockPrices: { [stockId: string]: number[] } = {};
+                            gameState.stocks.forEach(s => {
+                              stockPrices[s.id] = s.prices;
+                            });
+
+                            const report = await analyzeTeamPerformance({
+                              teamNumber: team.number,
+                              unlockedCards: team.unlockedCards,
+                              roundResults: team.roundResults,
+                              finalCash: team.currentCash,
+                              portfolio: team.portfolio,
+                              stockPrices,
+                              maxRounds: gameState.maxRounds
+                            });
+
+                            setAnalysisReports(prev => ({ ...prev, [team.id]: report }));
+                            setAnalyzingTeamId(null);
+                          };
 
                           return (
                             <div key={team.id} className="flex items-center justify-between p-3 rounded-lg bg-slate-600/30">
@@ -1411,18 +1442,41 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                                 </span>
                                 <span className="font-bold text-white">Team {team.number}</span>
                               </div>
-                              <div className="text-right">
-                                <p className="text-xs text-slate-400">{(totalValue / 10000).toFixed(0)}만원</p>
-                                <div className="flex items-center gap-2">
-                                  <span className={`text-xs font-bold ${roundRate >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                                    R{gameState.currentRound}: {roundRate >= 0 ? '+' : ''}{roundRate.toFixed(1)}%
-                                  </span>
-                                  {gameState.currentRound > 1 && (
-                                    <span className={`text-sm font-bold ${cumulativeRate >= 0 ? 'text-indigo-400' : 'text-rose-400'}`}>
-                                      (누적: {cumulativeRate >= 0 ? '+' : ''}{cumulativeRate.toFixed(1)}%)
+                              <div className="flex items-center gap-3">
+                                <div className="text-right">
+                                  <p className="text-xs text-slate-400">{(totalValue / 10000).toFixed(0)}만원</p>
+                                  <div className="flex items-center gap-2">
+                                    <span className={`text-xs font-bold ${roundRate >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                      R{gameState.currentRound}: {roundRate >= 0 ? '+' : ''}{roundRate.toFixed(1)}%
                                     </span>
-                                  )}
+                                    {gameState.currentRound > 1 && (
+                                      <span className={`text-sm font-bold ${cumulativeRate >= 0 ? 'text-indigo-400' : 'text-rose-400'}`}>
+                                        (누적: {cumulativeRate >= 0 ? '+' : ''}{cumulativeRate.toFixed(1)}%)
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
+                                {/* 분석 버튼 */}
+                                {hasReport ? (
+                                  <button
+                                    onClick={() => setShowAnalysisModal(team.id)}
+                                    className="px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 text-xs font-bold hover:bg-emerald-500/30 transition-colors"
+                                  >
+                                    📊 리포트
+                                  </button>
+                                ) : (
+                                  <button
+                                    onClick={handleAnalyze}
+                                    disabled={isAnalyzing}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                                      isAnalyzing
+                                        ? 'bg-slate-600/50 text-slate-400 cursor-wait'
+                                        : 'bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30'
+                                    }`}
+                                  >
+                                    {isAnalyzing ? '분석중...' : '🔍 분석'}
+                                  </button>
+                                )}
                               </div>
                             </div>
                           );
@@ -1471,6 +1525,107 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                   </>
                 )}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 분석 리포트 모달 */}
+      {showAnalysisModal && analysisReports[showAnalysisModal] && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+          <div className="iso-card bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-auto border border-indigo-500/50">
+            <div className="p-6">
+              {(() => {
+                const report = analysisReports[showAnalysisModal];
+                const team = gameState?.teams.find(t => t.id === showAnalysisModal);
+                return (
+                  <>
+                    <div className="flex justify-between items-center mb-6">
+                      <h2 className="text-xl font-black text-white flex items-center gap-2">
+                        📊 Team {team?.number} 투자 분석 리포트
+                      </h2>
+                      <button
+                        onClick={() => setShowAnalysisModal(null)}
+                        className="p-2 rounded-lg bg-slate-700/50 text-slate-400 hover:text-white transition-colors"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                      </button>
+                    </div>
+
+                    {/* 점수 */}
+                    <div className="mb-6 p-4 rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-indigo-500/30 text-center">
+                      <p className="text-xs text-indigo-300 uppercase font-bold mb-2">Overall Score</p>
+                      <p className="text-5xl font-black text-white">{report.overallScore}</p>
+                      <p className="text-xs text-slate-400 mt-1">/ 100점</p>
+                    </div>
+
+                    {/* 요약 */}
+                    <div className="mb-4 p-4 rounded-xl bg-slate-700/30">
+                      <h3 className="text-sm font-bold text-white mb-2">📝 요약</h3>
+                      <p className="text-sm text-slate-300">{report.summary}</p>
+                    </div>
+
+                    {/* 강점 */}
+                    {report.strengths.length > 0 && (
+                      <div className="mb-4 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
+                        <h3 className="text-sm font-bold text-emerald-300 mb-2">✅ 강점</h3>
+                        <ul className="space-y-1">
+                          {report.strengths.map((s, i) => (
+                            <li key={i} className="text-sm text-slate-300 flex items-start gap-2">
+                              <span className="text-emerald-400">•</span>
+                              {s}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* 개선점 */}
+                    {report.weaknesses.length > 0 && (
+                      <div className="mb-4 p-4 rounded-xl bg-rose-500/10 border border-rose-500/30">
+                        <h3 className="text-sm font-bold text-rose-300 mb-2">⚠️ 개선점</h3>
+                        <ul className="space-y-1">
+                          {report.weaknesses.map((w, i) => (
+                            <li key={i} className="text-sm text-slate-300 flex items-start gap-2">
+                              <span className="text-rose-400">•</span>
+                              {w}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* 추천 */}
+                    {report.recommendations.length > 0 && (
+                      <div className="mb-4 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30">
+                        <h3 className="text-sm font-bold text-amber-300 mb-2">💡 추천</h3>
+                        <ul className="space-y-1">
+                          {report.recommendations.map((r, i) => (
+                            <li key={i} className="text-sm text-slate-300 flex items-start gap-2">
+                              <span className="text-amber-400">•</span>
+                              {r}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* 분석 시간 */}
+                    <p className="text-xs text-slate-500 text-center mt-4">
+                      분석 시간: {new Date(report.timestamp).toLocaleString('ko-KR')}
+                    </p>
+
+                    <button
+                      onClick={() => setShowAnalysisModal(null)}
+                      className="btn-3d w-full mt-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-3 rounded-xl font-bold"
+                    >
+                      닫기
+                    </button>
+                  </>
+                );
+              })()}
             </div>
           </div>
         </div>
