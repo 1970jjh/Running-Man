@@ -144,12 +144,18 @@ const App: React.FC = () => {
   }, [currentRoomId, view]);
 
   // GameState 업데이트 함수 (Firebase와 동기화)
+  // 중요: 로컬 상태를 직접 업데이트하지 않고 Firebase만 업데이트
+  // Firebase 구독에서 상태 변경을 받아 처리하므로 race condition 방지
   const handleSetGameState: React.Dispatch<React.SetStateAction<GameState>> = async (action) => {
     if (!currentRoomId || !gameState) return;
 
     const newState = typeof action === 'function' ? action(gameState) : action;
-    setGameState(newState);
-    await updateRoomGameState(currentRoomId, newState);
+    // 로컬 상태는 Firebase 구독에서 자동으로 업데이트됨
+    // setGameState(newState) 를 직접 호출하면 race condition 발생
+    const success = await updateRoomGameState(currentRoomId, newState);
+    if (!success) {
+      console.error('Firebase 업데이트 실패');
+    }
   };
 
   // 로그인 핸들러
