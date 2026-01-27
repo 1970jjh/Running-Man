@@ -104,17 +104,29 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
           <div className="grid grid-cols-3 gap-2">
             <div className="p-2 md:p-3 rounded-lg bg-slate-700/30 border border-slate-600/30">
               <p className="text-[9px] md:text-[10px] text-slate-400 uppercase font-bold mb-1">총 자산</p>
-              <p className="text-sm md:text-lg font-black text-white font-display truncate">{totalAssets.toLocaleString()}</p>
+              {gameState.isPortfolioLocked ? (
+                <p className="text-sm md:text-lg font-black text-slate-500 font-display">🔒</p>
+              ) : (
+                <p className="text-sm md:text-lg font-black text-white font-display truncate">{totalAssets.toLocaleString()}</p>
+              )}
             </div>
             <div className="p-2 md:p-3 rounded-lg bg-slate-700/30 border border-slate-600/30">
               <p className="text-[9px] md:text-[10px] text-slate-400 uppercase font-bold mb-1">현금</p>
-              <p className="text-sm md:text-lg font-black text-emerald-400 font-display truncate">{myTeam.currentCash.toLocaleString()}</p>
+              {gameState.isPortfolioLocked ? (
+                <p className="text-sm md:text-lg font-black text-slate-500 font-display">🔒</p>
+              ) : (
+                <p className="text-sm md:text-lg font-black text-emerald-400 font-display truncate">{myTeam.currentCash.toLocaleString()}</p>
+              )}
             </div>
             <div className="p-2 md:p-3 rounded-lg bg-slate-700/30 border border-slate-600/30">
               <p className="text-[9px] md:text-[10px] text-slate-400 uppercase font-bold mb-1">수익률</p>
-              <p className={`text-sm md:text-lg font-black font-display ${profitRate >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                {profitRate >= 0 ? '+' : ''}{profitRate.toFixed(1)}%
-              </p>
+              {gameState.isPortfolioLocked ? (
+                <p className="text-sm md:text-lg font-black text-slate-500 font-display">🔒</p>
+              ) : (
+                <p className={`text-sm md:text-lg font-black font-display ${profitRate >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                  {profitRate >= 0 ? '+' : ''}{profitRate.toFixed(1)}%
+                </p>
+              )}
             </div>
           </div>
 
