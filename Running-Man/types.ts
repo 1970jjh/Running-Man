@@ -86,6 +86,7 @@ export interface GameState {
   isTimerRunning: boolean;
   isInvestmentLocked: boolean;
   isInvestmentConfirmed: boolean; // 투자 확정 여부
+  isPortfolioLocked: boolean; // 포트폴리오 잠금 (투자 확정 ~ 결과 발표 사이)
   teams: Team[];
   stocks: Stock[];
   revealedResults: boolean;

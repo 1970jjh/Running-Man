@@ -146,6 +146,7 @@ export const createDefaultGameState = (roomName: string, totalTeams: number, max
     isTimerRunning: false,
     isInvestmentLocked: true,
     isInvestmentConfirmed: false,
+    isPortfolioLocked: false,
     teams,
     stocks: STOCK_DATA,
     revealedResults: false
