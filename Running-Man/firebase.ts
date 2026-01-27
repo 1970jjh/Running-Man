@@ -8,10 +8,11 @@ import {
   onValue,
   remove,
   update,
+  runTransaction,
   Database,
   DatabaseReference
 } from 'firebase/database';
-import { Room, GameState, GameStatus, GameStep, Team } from './types';
+import { Room, GameState, GameStatus, GameStep, Team, Transaction } from './types';
 import { STOCK_DATA, INITIAL_SEED_MONEY } from './constants';
 
 // Firebase 설정
@@ -90,7 +91,8 @@ const normalizeGameState = (gameState: any): GameState => {
       unlockedCards: toArray(team.unlockedCards),
       roundResults: toArray(team.roundResults),
       portfolio: team.portfolio || {},
-      purchasedInfoCountPerRound: team.purchasedInfoCountPerRound || {}
+      purchasedInfoCountPerRound: team.purchasedInfoCountPerRound || {},
+      transactionHistory: toArray(team.transactionHistory)
     })),
     stocks: toArray(gameState.stocks).map((stock: any) => ({
       ...stock,
@@ -495,6 +497,152 @@ export const verifyAdminPassword = async (
   const room = await getRoom(roomId);
   if (!room) return false;
   return room.adminPassword === password;
+};
+
+// ========== 팀 거래 (Transaction 기반 원자적 업데이트) ==========
+export interface TradeRequest {
+  roomId: string;
+  teamIndex: number; // teams 배열에서의 인덱스
+  type: 'BUY' | 'SELL';
+  stockId: string;
+  stockName: string;
+  quantity: number;
+  pricePerShare: number;
+  round: number;
+  maxInvestablePerStock: number;
+}
+
+export interface TradeResult {
+  success: boolean;
+  error?: string;
+}
+
+export const executeTeamTrade = async (trade: TradeRequest): Promise<TradeResult> => {
+  if (!database) {
+    return { success: false, error: 'Firebase가 초기화되지 않았습니다.' };
+  }
+
+  const teamRef = ref(database, `rooms/${trade.roomId}/gameState/teams/${trade.teamIndex}`);
+
+  try {
+    let tradeError: string | null = null;
+
+    await runTransaction(teamRef, (currentTeam) => {
+      if (!currentTeam) return currentTeam;
+
+      const totalCost = trade.quantity * trade.pricePerShare;
+
+      if (trade.type === 'BUY') {
+        // 현금 확인
+        if (totalCost > currentTeam.currentCash) {
+          tradeError = '현금이 부족합니다.';
+          return; // abort transaction
+        }
+
+        // 30% 한도 확인
+        const currentQty = (currentTeam.portfolio && currentTeam.portfolio[trade.stockId]) || 0;
+        const currentInvested = currentQty * trade.pricePerShare;
+        if (currentInvested + totalCost > trade.maxInvestablePerStock) {
+          tradeError = '투자 한도(30%)를 초과합니다.';
+          return; // abort transaction
+        }
+
+        // 매수 적용
+        const newPortfolio = { ...(currentTeam.portfolio || {}) };
+        newPortfolio[trade.stockId] = (newPortfolio[trade.stockId] || 0) + trade.quantity;
+
+        const newTransaction: Transaction = {
+          id: `tx-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          round: trade.round,
+          stockId: trade.stockId,
+          stockName: trade.stockName,
+          type: 'BUY',
+          quantity: trade.quantity,
+          pricePerShare: trade.pricePerShare,
+          totalAmount: totalCost,
+          timestamp: Date.now()
+        };
+
+        const history = Array.isArray(currentTeam.transactionHistory)
+          ? [...currentTeam.transactionHistory]
+          : currentTeam.transactionHistory
+            ? Object.values(currentTeam.transactionHistory)
+            : [];
+
+        return {
+          ...currentTeam,
+          currentCash: currentTeam.currentCash - totalCost,
+          portfolio: newPortfolio,
+          transactionHistory: [...history, newTransaction]
+        };
+      } else {
+        // 매도
+        const currentQty = (currentTeam.portfolio && currentTeam.portfolio[trade.stockId]) || 0;
+        if (trade.quantity > currentQty) {
+          tradeError = '보유 수량이 부족합니다.';
+          return; // abort transaction
+        }
+
+        // 매수 평균가 계산
+        const historyArr = Array.isArray(currentTeam.transactionHistory)
+          ? currentTeam.transactionHistory
+          : currentTeam.transactionHistory
+            ? Object.values(currentTeam.transactionHistory) as Transaction[]
+            : [];
+
+        const buyTxs = historyArr.filter(
+          (tx: Transaction) => tx.stockId === trade.stockId && tx.type === 'BUY' && tx.round === trade.round
+        );
+        const totalBought = buyTxs.reduce((sum: number, tx: Transaction) => sum + tx.quantity, 0);
+        const totalBoughtAmount = buyTxs.reduce((sum: number, tx: Transaction) => sum + tx.totalAmount, 0);
+        const avgBuyPrice = totalBought > 0 ? totalBoughtAmount / totalBought : trade.pricePerShare;
+
+        const totalSellAmount = trade.quantity * trade.pricePerShare;
+        const costBasis = trade.quantity * avgBuyPrice;
+        const profitLoss = totalSellAmount - costBasis;
+        const profitLossRate = costBasis > 0 ? (profitLoss / costBasis) * 100 : 0;
+
+        const newPortfolio = { ...(currentTeam.portfolio || {}) };
+        newPortfolio[trade.stockId] = currentQty - trade.quantity;
+
+        const newTransaction: Transaction = {
+          id: `tx-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          round: trade.round,
+          stockId: trade.stockId,
+          stockName: trade.stockName,
+          type: 'SELL',
+          quantity: trade.quantity,
+          pricePerShare: trade.pricePerShare,
+          totalAmount: totalSellAmount,
+          timestamp: Date.now(),
+          profitLoss,
+          profitLossRate
+        };
+
+        const history = Array.isArray(currentTeam.transactionHistory)
+          ? [...currentTeam.transactionHistory]
+          : currentTeam.transactionHistory
+            ? Object.values(currentTeam.transactionHistory)
+            : [];
+
+        return {
+          ...currentTeam,
+          currentCash: currentTeam.currentCash + totalSellAmount,
+          portfolio: newPortfolio,
+          transactionHistory: [...history, newTransaction]
+        };
+      }
+    });
+
+    if (tradeError) {
+      return { success: false, error: tradeError };
+    }
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('거래 트랜잭션 오류:', error);
+    return { success: false, error: error?.message || '거래 처리 중 오류가 발생했습니다.' };
+  }
 };
 
 export { database, ref, onValue, set, get, update };

@@ -3,15 +3,17 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { GameState, Team, GameStatus, GameStep } from '../types';
 import InvestmentModule from './InvestmentModule';
 import { INFO_CARDS, STEP_NAMES, INITIAL_SEED_MONEY } from '../constants';
+import { TradeRequest } from '../firebase';
 
 interface UserDashboardProps {
   gameState: GameState;
   myTeam: Team;
   setGameState: React.Dispatch<React.SetStateAction<GameState>>;
   onExitRequest?: () => void;
+  onTrade: (trade: Omit<TradeRequest, 'roomId' | 'teamIndex'>) => Promise<{ success: boolean; error?: string }>;
 }
 
-const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGameState, onExitRequest }) => {
+const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGameState, onExitRequest, onTrade }) => {
   const [activeTab, setActiveTab] = useState<'info' | 'invest' | 'portfolio'>('info');
   const [showConfirmPopup, setShowConfirmPopup] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
@@ -323,7 +325,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
               gameState={gameState}
               myTeam={myTeam}
               totalAssets={totalAssets}
-              setGameState={setGameState}
+              onTrade={onTrade}
             />
           )}
 
