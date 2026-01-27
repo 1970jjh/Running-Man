@@ -399,6 +399,10 @@ const InvestmentModule: React.FC<InvestmentModuleProps> = ({ gameState, myTeam, 
                     setQty(0);
                   }
                 }}
+                onWheel={e => {
+                  // 마우스 휠로 수량 변경 방지
+                  e.currentTarget.blur();
+                }}
                 className="flex-1 min-w-0 h-12 px-2 rounded-lg bg-slate-700/50 border-2 border-slate-600/50 text-white font-bold text-lg text-center outline-none focus:border-indigo-500"
               />
               <button
