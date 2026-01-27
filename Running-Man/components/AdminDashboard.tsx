@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { GameState, GameStatus, GameStep, Team, Room } from '../types';
-import { STOCK_DATA, INITIAL_SEED_MONEY, INFO_CARDS, STEP_NAMES, getInfoPrice, ADMIN_PASSWORD } from '../constants';
+import { STOCK_DATA, INITIAL_SEED_MONEY, INFO_CARDS, STEP_NAMES, ADMIN_PASSWORD } from '../constants';
 import {
   createRoom,
   subscribeToRooms,
@@ -975,14 +975,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                   </div>
                 </div>
               ))}
-            </div>
-
-            {/* 정보 구매 가격 안내 */}
-            <div className="mt-4 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30">
-              <p className="text-sm text-amber-300 font-medium">
-                💡 현재 라운드 정보 구매 가격: <span className="font-bold">{(getInfoPrice(gameState.currentRound) / 10000).toLocaleString()}만원</span>
-                <span className="text-xs text-amber-400/70 ml-2">(라운드당 10개 제한)</span>
-              </p>
             </div>
           </div>
 

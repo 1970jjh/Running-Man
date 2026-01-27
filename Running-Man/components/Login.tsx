@@ -178,10 +178,6 @@ const Login: React.FC<LoginProps> = ({ onLogin, onAdminAccess }) => {
                   <span className={`w-2 h-2 rounded-full ${firebaseConnected ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`}></span>
                   {firebaseConnected ? '서버 연결됨' : '서버 연결 실패'}
                 </span>
-                <span>|</span>
-                <span className="font-display">19개 종목</span>
-                <span>|</span>
-                <span className="font-display">4 라운드</span>
               </div>
             </div>
           </div>
