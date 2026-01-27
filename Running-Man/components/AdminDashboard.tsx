@@ -1438,7 +1438,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                               finalCash: team.currentCash,
                               portfolio: team.portfolio,
                               stockPrices,
-                              maxRounds: gameState.maxRounds
+                              maxRounds: gameState.maxRounds,
+                              transactionHistory: team.transactionHistory || []
                             });
 
                             setAnalysisReports(prev => ({ ...prev, [team.id]: report }));
@@ -1467,25 +1468,30 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                                     )}
                                   </div>
                                 </div>
-                                {/* 분석 버튼 */}
+                                {/* AI 분석 버튼 */}
                                 {hasReport ? (
                                   <button
                                     onClick={() => setShowAnalysisModal(team.id)}
-                                    className="px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 text-xs font-bold hover:bg-emerald-500/30 transition-colors"
+                                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-sm font-bold hover:from-emerald-600 hover:to-teal-600 transition-all shadow-lg shadow-emerald-500/30"
                                   >
-                                    📊 리포트
+                                    📊 AI 리포트 보기
                                   </button>
                                 ) : (
                                   <button
                                     onClick={handleAnalyze}
                                     disabled={isAnalyzing}
-                                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                                    className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
                                       isAnalyzing
                                         ? 'bg-slate-600/50 text-slate-400 cursor-wait'
-                                        : 'bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30'
+                                        : 'bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600 shadow-lg shadow-purple-500/30 animate-pulse'
                                     }`}
                                   >
-                                    {isAnalyzing ? '분석중...' : '🔍 분석'}
+                                    {isAnalyzing ? (
+                                      <span className="flex items-center gap-2">
+                                        <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                                        AI 분석중...
+                                      </span>
+                                    ) : '🤖 AI 분석'}
                                   </button>
                                 )}
                               </div>
@@ -1778,6 +1784,21 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                             <li key={i} className="text-sm text-slate-300 flex items-start gap-2">
                               <span className="text-amber-400">•</span>
                               {r}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* 정보카드 기반 투자 분석 */}
+                    {report.infoCardAnalysis && report.infoCardAnalysis.length > 0 && (
+                      <div className="mb-4 p-4 rounded-xl bg-gradient-to-br from-purple-500/10 to-pink-500/10 border border-purple-500/30">
+                        <h3 className="text-sm font-bold text-purple-300 mb-2">🔍 정보카드 vs 협상 투자 분석</h3>
+                        <ul className="space-y-2">
+                          {report.infoCardAnalysis.map((analysis, i) => (
+                            <li key={i} className="text-sm text-slate-300 flex items-start gap-2">
+                              <span className="text-purple-400">•</span>
+                              {analysis}
                             </li>
                           ))}
                         </ul>
