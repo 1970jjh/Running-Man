@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { GameState, Team, GameStatus, GameStep } from '../types';
 import InvestmentModule from './InvestmentModule';
 import { INFO_CARDS, getInfoPrice, MAX_PURCHASED_INFO_PER_ROUND, STEP_NAMES, INITIAL_SEED_MONEY } from '../constants';
@@ -16,6 +16,19 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
   const [showConfirmPopup, setShowConfirmPopup] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
   const [viewingCard, setViewingCard] = useState<string | null>(null);
+  const [showStepNotification, setShowStepNotification] = useState(false);
+  const prevStepRef = useRef<GameStep | null>(null);
+
+  // Step 변경 감지 및 알림 표시
+  useEffect(() => {
+    if (prevStepRef.current !== null && prevStepRef.current !== gameState.currentStep) {
+      setShowStepNotification(true);
+      // 5초 후 자동 닫기
+      const timer = setTimeout(() => setShowStepNotification(false), 5000);
+      return () => clearTimeout(timer);
+    }
+    prevStepRef.current = gameState.currentStep;
+  }, [gameState.currentStep]);
 
   // 총 자산 계산
   const totalAssets = useMemo(() => {
@@ -224,7 +237,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
                 )}
               </div>
 
-              {/* 카테고리 필터 */}
+              {/* 카테고리 필터 - 설정된 라운드까지만 표시 */}
               <div className="flex gap-2 overflow-x-auto pb-2">
                 <button
                   onClick={() => setSelectedCategory(null)}
@@ -236,7 +249,9 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
                 >
                   전체
                 </button>
-                {[0, 1, 2, 3, 4].map(cat => {
+                {[0, 1, 2, 3, 4]
+                  .filter(cat => cat === 0 || cat <= gameState.maxRounds) // 업종정보(0) + 설정된 라운드까지만
+                  .map(cat => {
                   const categoryNames = ['업종정보', '1R 정보', '2R 정보', '3R 정보', '4R 정보'];
                   return (
                     <button
@@ -264,9 +279,10 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
                 </button>
               </div>
 
-              {/* 정보 카드 목록 (세로 리스트) */}
+              {/* 정보 카드 목록 (세로 리스트) - 설정된 라운드까지만 표시 */}
               <div className="space-y-2">
                 {INFO_CARDS
+                  .filter(card => card.categoryIndex === 0 || card.categoryIndex <= gameState.maxRounds) // 라운드 제한
                   .filter(card => {
                     if (selectedCategory === -1) return myTeam.unlockedCards.includes(card.id);
                     if (selectedCategory !== null) return card.categoryIndex === selectedCategory;
@@ -646,6 +662,36 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
               className="mt-4 text-slate-400 hover:text-white text-sm font-semibold transition-colors"
             >
               탭하여 닫기
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Step 변경 알림 팝업 */}
+      {showStepNotification && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-fade-in-up">
+          <div className="iso-card bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl max-w-sm w-full p-6 border border-indigo-500/50 text-center">
+            <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center animate-pulse">
+              <span className="text-4xl">
+                {gameState.currentStep === GameStep.MINI_GAME && '🎮'}
+                {gameState.currentStep === GameStep.INFO_PURCHASE && '📋'}
+                {gameState.currentStep === GameStep.INFO_NEGOTIATION && '🤝'}
+                {gameState.currentStep === GameStep.INVESTMENT && '💰'}
+                {gameState.currentStep === GameStep.RESULT && '📊'}
+              </span>
+            </div>
+            <h2 className="text-2xl font-black text-white mb-2">단계 변경!</h2>
+            <p className="text-3xl font-black text-indigo-400 mb-4">
+              {STEP_NAMES[gameState.currentStep]}
+            </p>
+            <p className="text-sm text-slate-400 mb-6">
+              Round {gameState.currentRound}의 새로운 단계가 시작되었습니다.
+            </p>
+            <button
+              onClick={() => setShowStepNotification(false)}
+              className="btn-3d w-full bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold py-3 rounded-xl"
+            >
+              확인
             </button>
           </div>
         </div>

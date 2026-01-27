@@ -176,5 +176,5 @@ export const STEP_NAMES: { [key: string]: string } = {
   INFO_PURCHASE: '정보구매',
   INFO_NEGOTIATION: '정보협상',
   INVESTMENT: '투자',
-  RESULT: '결과발표'
+  RESULT: '결과발표 및 분석'
 };
