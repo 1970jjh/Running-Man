@@ -1146,7 +1146,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               return (
                 <div key={category} className="p-3 rounded-xl bg-slate-700/30 border border-slate-600/30">
                   <div className="flex items-center justify-between mb-2">
-                    <p className="text-xs font-bold text-indigo-300">카테고리 {category}</p>
+                    <p className="text-xs font-bold text-indigo-300">
+                      {['업종정보', '1R 정보', '2R 정보', '3R 정보', '4R 정보'][category]}
+                    </p>
                     <span className="text-xs text-slate-500">{unlockedCount}/{categoryCards.length}</span>
                   </div>
                   <div className="space-y-1 max-h-40 overflow-y-auto">

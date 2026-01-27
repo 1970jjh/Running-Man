@@ -212,21 +212,21 @@ const InvestmentModule: React.FC<InvestmentModuleProps> = ({ gameState, myTeam, 
         </div>
       ) : (
         // 거래 패널
-        <div className="iso-card bg-gradient-to-br from-slate-800/90 to-slate-900/95 p-6 rounded-2xl border border-slate-700/50">
+        <div className="iso-card bg-gradient-to-br from-slate-800/90 to-slate-900/95 p-4 md:p-6 rounded-2xl border border-slate-700/50">
           {/* 헤더 */}
-          <div className="flex justify-between items-start mb-6">
-            <div>
-              <h4 className="text-2xl font-black text-white flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500/30 to-purple-500/30 flex items-center justify-center">
-                  <span className="font-black">{selectedStock.id}</span>
+          <div className="flex justify-between items-start mb-4 md:mb-6">
+            <div className="flex-1 min-w-0">
+              <h4 className="text-xl md:text-2xl font-black text-white flex items-center gap-2 md:gap-3">
+                <div className="w-8 h-8 md:w-10 md:h-10 rounded-lg bg-gradient-to-br from-indigo-500/30 to-purple-500/30 flex items-center justify-center flex-shrink-0">
+                  <span className="font-black text-sm md:text-base">{selectedStock.id}</span>
                 </div>
-                {selectedStock.name}
+                <span className="truncate">{selectedStock.name}</span>
               </h4>
               <p className="text-xs text-slate-400 mt-1">Trading Panel</p>
             </div>
             <button
               onClick={() => { setSelectedStock(null); setQty(0); }}
-              className="p-2 rounded-xl bg-slate-700/50 text-slate-400 hover:text-white transition-colors"
+              className="p-2 rounded-lg bg-slate-700/50 text-slate-400 hover:text-white transition-colors flex-shrink-0"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/>
@@ -235,24 +235,24 @@ const InvestmentModule: React.FC<InvestmentModuleProps> = ({ gameState, myTeam, 
           </div>
 
           {/* 현재가 */}
-          <div className="p-4 rounded-xl bg-slate-700/30 mb-6">
+          <div className="p-3 md:p-4 rounded-lg bg-slate-700/30 mb-4 md:mb-6">
             <div className="flex justify-between items-end">
               <span className="text-xs text-slate-400 font-bold uppercase">현재가</span>
-              <span className="text-3xl font-black text-indigo-300 font-display">
+              <span className="text-2xl md:text-3xl font-black text-indigo-300 font-display">
                 {selectedStock.prices[currentRoundIdx].toLocaleString()}원
               </span>
             </div>
           </div>
 
           {/* 투자 현황 */}
-          <div className="grid grid-cols-2 gap-4 mb-6">
-            <div className="p-4 rounded-xl bg-slate-700/30">
-              <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">투자 한도 (30%)</p>
-              <p className="text-lg font-black text-amber-300 font-display">{maxInvestablePerStock.toLocaleString()}원</p>
+          <div className="grid grid-cols-2 gap-2 md:gap-4 mb-4 md:mb-6">
+            <div className="p-3 md:p-4 rounded-lg bg-slate-700/30">
+              <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">투자 한도</p>
+              <p className="text-sm md:text-lg font-black text-amber-300 font-display">{maxInvestablePerStock.toLocaleString()}원</p>
             </div>
-            <div className="p-4 rounded-xl bg-slate-700/30">
+            <div className="p-3 md:p-4 rounded-lg bg-slate-700/30">
               <p className="text-[10px] text-slate-400 font-bold uppercase mb-1">현재 투자액</p>
-              <p className={`text-lg font-black font-display ${
+              <p className={`text-sm md:text-lg font-black font-display ${
                 currentInvested > maxInvestablePerStock * 0.8 ? 'text-amber-300' : 'text-emerald-300'
               }`}>
                 {currentInvested.toLocaleString()}원
@@ -261,14 +261,14 @@ const InvestmentModule: React.FC<InvestmentModuleProps> = ({ gameState, myTeam, 
           </div>
 
           {/* 투자 비율 바 */}
-          <div className="mb-6">
+          <div className="mb-4 md:mb-6">
             <div className="flex justify-between text-xs text-slate-400 mb-2">
               <span>투자 비율</span>
               <span className={isOverLimit ? 'text-rose-400 font-bold' : ''}>
-                {((currentInvested + estimatedInvestment) / maxInvestablePerStock * 100).toFixed(1)}% / 100%
+                {((currentInvested + estimatedInvestment) / maxInvestablePerStock * 100).toFixed(1)}%
               </span>
             </div>
-            <div className="h-3 bg-slate-700 rounded-full overflow-hidden">
+            <div className="h-2 md:h-3 bg-slate-700 rounded-full overflow-hidden">
               <div
                 className={`h-full transition-all ${
                   isOverLimit ? 'bg-gradient-to-r from-rose-500 to-rose-400' :
@@ -280,10 +280,10 @@ const InvestmentModule: React.FC<InvestmentModuleProps> = ({ gameState, myTeam, 
             </div>
             {isOverLimit && (
               <p className="text-xs text-rose-400 mt-2 font-bold flex items-center gap-1">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
                 </svg>
-                30% 투자 한도를 초과합니다!
+                30% 한도 초과!
               </p>
             )}
           </div>
@@ -299,10 +299,10 @@ const InvestmentModule: React.FC<InvestmentModuleProps> = ({ gameState, myTeam, 
                 최대 {maxBuyQty.toLocaleString()}주
               </button>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 w-full">
               <button
                 onClick={() => setQty(q => Math.max(0, q - 10))}
-                className="w-14 h-14 rounded-xl bg-slate-700/50 text-white font-bold text-xl hover:bg-slate-700 transition-colors"
+                className="flex-shrink-0 w-12 h-12 rounded-lg bg-slate-700/50 text-white font-bold text-xl hover:bg-slate-700 transition-colors flex items-center justify-center"
               >
                 -
               </button>
@@ -310,11 +310,11 @@ const InvestmentModule: React.FC<InvestmentModuleProps> = ({ gameState, myTeam, 
                 type="number"
                 value={qty}
                 onChange={e => setQty(Math.max(0, Number(e.target.value)))}
-                className="flex-1 h-14 px-4 rounded-xl bg-slate-700/50 border-2 border-slate-600/50 text-white font-bold text-xl text-center outline-none focus:border-indigo-500"
+                className="flex-1 min-w-0 h-12 px-2 rounded-lg bg-slate-700/50 border-2 border-slate-600/50 text-white font-bold text-lg text-center outline-none focus:border-indigo-500"
               />
               <button
                 onClick={() => setQty(q => q + 10)}
-                className="w-14 h-14 rounded-xl bg-slate-700/50 text-white font-bold text-xl hover:bg-slate-700 transition-colors"
+                className="flex-shrink-0 w-12 h-12 rounded-lg bg-slate-700/50 text-white font-bold text-xl hover:bg-slate-700 transition-colors flex items-center justify-center"
               >
                 +
               </button>
@@ -323,10 +323,10 @@ const InvestmentModule: React.FC<InvestmentModuleProps> = ({ gameState, myTeam, 
 
           {/* 예상 금액 */}
           {qty > 0 && (
-            <div className="p-4 rounded-xl bg-indigo-500/10 border border-indigo-500/30 mb-6">
+            <div className="p-3 md:p-4 rounded-lg bg-indigo-500/10 border border-indigo-500/30 mb-4 md:mb-6">
               <div className="flex justify-between items-center">
-                <span className="text-sm text-indigo-300">예상 거래 금액</span>
-                <span className="text-xl font-black text-indigo-300 font-display">
+                <span className="text-xs md:text-sm text-indigo-300">예상 거래 금액</span>
+                <span className="text-lg md:text-xl font-black text-indigo-300 font-display">
                   {estimatedInvestment.toLocaleString()}원
                 </span>
               </div>
@@ -334,11 +334,11 @@ const InvestmentModule: React.FC<InvestmentModuleProps> = ({ gameState, myTeam, 
           )}
 
           {/* 매수/매도 버튼 */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 gap-2 md:gap-4">
             <button
               disabled={isTradeDisabled || qty <= 0 || isOverLimit}
               onClick={handleBuy}
-              className={`py-4 rounded-xl font-bold text-lg transition-all ${
+              className={`py-3 md:py-4 rounded-lg font-bold text-base md:text-lg transition-all ${
                 isTradeDisabled || qty <= 0 || isOverLimit
                   ? 'bg-slate-700/50 text-slate-500 cursor-not-allowed'
                   : 'btn-3d bg-gradient-to-r from-rose-500 to-rose-600 text-white'
@@ -349,7 +349,7 @@ const InvestmentModule: React.FC<InvestmentModuleProps> = ({ gameState, myTeam, 
             <button
               disabled={isTradeDisabled || qty <= 0 || (myTeam.portfolio[selectedStock.id] || 0) < qty}
               onClick={handleSell}
-              className={`py-4 rounded-xl font-bold text-lg transition-all ${
+              className={`py-3 md:py-4 rounded-lg font-bold text-base md:text-lg transition-all ${
                 isTradeDisabled || qty <= 0 || (myTeam.portfolio[selectedStock.id] || 0) < qty
                   ? 'bg-slate-700/50 text-slate-500 cursor-not-allowed'
                   : 'btn-3d bg-gradient-to-r from-blue-500 to-blue-600 text-white'
@@ -361,11 +361,11 @@ const InvestmentModule: React.FC<InvestmentModuleProps> = ({ gameState, myTeam, 
 
           {/* 보유 현황 */}
           {(myTeam.portfolio[selectedStock.id] || 0) > 0 && (
-            <div className="mt-4 p-4 rounded-xl bg-slate-700/30 text-center">
+            <div className="mt-3 md:mt-4 p-3 md:p-4 rounded-lg bg-slate-700/30 text-center">
               <p className="text-xs text-slate-400">현재 보유</p>
-              <p className="text-lg font-black text-white">
+              <p className="text-base md:text-lg font-black text-white">
                 {(myTeam.portfolio[selectedStock.id] || 0).toLocaleString()}주
-                <span className="text-sm text-slate-400 ml-2">
+                <span className="text-xs md:text-sm text-slate-400 ml-2">
                   ({((myTeam.portfolio[selectedStock.id] || 0) * selectedStock.prices[currentRoundIdx]).toLocaleString()}원)
                 </span>
               </p>
