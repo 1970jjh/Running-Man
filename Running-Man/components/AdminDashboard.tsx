@@ -1146,7 +1146,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               return (
                 <div key={category} className="p-3 rounded-xl bg-slate-700/30 border border-slate-600/30">
                   <div className="flex items-center justify-between mb-2">
-                    <p className="text-xs font-bold text-indigo-300">카테고리 {category}</p>
+                    <p className="text-xs font-bold text-indigo-300">
+                      {['업종정보', '1R 정보', '2R 정보', '3R 정보', '4R 정보'][category]}
+                    </p>
                     <span className="text-xs text-slate-500">{unlockedCount}/{categoryCards.length}</span>
                   </div>
                   <div className="space-y-1 max-h-40 overflow-y-auto">
@@ -1231,27 +1233,80 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                       📈 Round {gameState.currentRound}에 투자한 종목은 Round {gameState.currentRound + 1} 가격으로 수익이 반영됩니다.
                     </p>
                   </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+
+                  {/* 막대그래프 형태의 주가 변동 */}
+                  <div className="mb-6 p-4 rounded-xl bg-slate-700/30">
+                    <h4 className="text-sm font-bold text-slate-300 mb-4">📊 종목별 주가 변동률</h4>
+                    <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                      {[...gameState.stocks]
+                        .map(stock => {
+                          const investedPrice = stock.prices[gameState.currentRound];
+                          const resultPrice = stock.prices[gameState.currentRound + 1] || stock.prices[gameState.currentRound];
+                          const change = ((resultPrice - investedPrice) / investedPrice) * 100;
+                          return { stock, change, investedPrice, resultPrice };
+                        })
+                        .sort((a, b) => b.change - a.change)
+                        .map(({ stock, change, resultPrice }) => {
+                          const maxChange = Math.max(...gameState.stocks.map(s => {
+                            const inv = s.prices[gameState.currentRound];
+                            const res = s.prices[gameState.currentRound + 1] || s.prices[gameState.currentRound];
+                            return Math.abs(((res - inv) / inv) * 100);
+                          }), 10);
+                          const barWidth = Math.min(100, (Math.abs(change) / maxChange) * 100);
+
+                          return (
+                            <div key={stock.id} className="flex items-center gap-3">
+                              <span className="w-8 text-sm font-bold text-white">{stock.name}</span>
+                              <div className="flex-1 h-6 bg-slate-600/50 rounded relative overflow-hidden">
+                                {change >= 0 ? (
+                                  <div
+                                    className="absolute left-1/2 h-full bg-gradient-to-r from-rose-500 to-rose-400 rounded-r transition-all duration-700"
+                                    style={{ width: `${barWidth / 2}%` }}
+                                  />
+                                ) : (
+                                  <div
+                                    className="absolute right-1/2 h-full bg-gradient-to-l from-blue-500 to-blue-400 rounded-l transition-all duration-700"
+                                    style={{ width: `${barWidth / 2}%` }}
+                                  />
+                                )}
+                                <div className="absolute left-1/2 top-0 bottom-0 w-px bg-slate-400/50" />
+                              </div>
+                              <div className="w-24 text-right">
+                                <span className={`text-sm font-bold ${change >= 0 ? 'text-rose-400' : 'text-blue-400'}`}>
+                                  {change >= 0 ? '▲' : '▼'} {Math.abs(change).toFixed(1)}%
+                                </span>
+                              </div>
+                              <span className="w-20 text-right text-xs text-slate-400">
+                                {resultPrice.toLocaleString()}원
+                              </span>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  </div>
+
+                  {/* 종목 카드 그리드 */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                     {gameState.stocks.map(stock => {
                       const investedPrice = stock.prices[gameState.currentRound]; // 투자 시점 가격
                       const resultPrice = stock.prices[gameState.currentRound + 1] || stock.prices[gameState.currentRound]; // 결과 가격 (다음 라운드)
                       const change = ((resultPrice - investedPrice) / investedPrice) * 100;
 
                       return (
-                        <div key={stock.id} className="p-4 rounded-xl bg-slate-700/30 border border-slate-600/30">
-                          <div className="flex justify-between items-center mb-3">
-                            <span className="text-lg font-bold text-white">{stock.name}</span>
-                            <span className={`text-sm font-bold px-2 py-1 rounded-lg ${
+                        <div key={stock.id} className="p-3 rounded-xl bg-slate-700/30 border border-slate-600/30">
+                          <div className="flex justify-between items-center mb-2">
+                            <span className="text-base font-bold text-white">{stock.name}</span>
+                            <span className={`text-xs font-bold px-2 py-0.5 rounded ${
                               change >= 0 ? 'bg-rose-500/20 text-rose-400' : 'bg-blue-500/20 text-blue-400'
                             }`}>
                               {change >= 0 ? '▲' : '▼'} {Math.abs(change).toFixed(1)}%
                             </span>
                           </div>
-                          <p className="text-2xl font-black text-indigo-300 font-display">
+                          <p className="text-xl font-black text-indigo-300 font-display">
                             {resultPrice.toLocaleString()}원
                           </p>
-                          <p className="text-xs text-slate-500 mt-1">
-                            투자 시점(R{gameState.currentRound}): {investedPrice.toLocaleString()}원
+                          <p className="text-[10px] text-slate-500 mt-1">
+                            R{gameState.currentRound}: {investedPrice.toLocaleString()}원
                           </p>
                         </div>
                       );
@@ -1263,39 +1318,78 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               {/* 팀별 수익률 */}
               {resultStep === 'teams' && (
                 <div className="space-y-6">
-                  {/* 라운드 수익률 그래프 */}
+                  {/* 수익률 설명 */}
+                  <div className="p-3 rounded-xl bg-indigo-500/20 border border-indigo-500/30">
+                    <p className="text-indigo-300 text-sm font-medium text-center">
+                      💰 시드머니: <span className="font-bold">1,000만원</span> 기준으로 수익률을 계산합니다.
+                    </p>
+                  </div>
+
+                  {/* 라운드별 수익률 그래프 */}
                   <div>
-                    <h3 className="text-lg font-bold text-white mb-4">Round {gameState.currentRound} 수익률 (시드머니 1,000만원 기준)</h3>
-                    <div className="flex items-end gap-4 h-48 p-4 bg-slate-700/30 rounded-xl">
+                    <h3 className="text-base font-bold text-white mb-3">📊 Round {gameState.currentRound} 수익률</h3>
+                    <div className="flex items-end gap-3 h-40 p-4 bg-slate-700/30 rounded-xl">
                       {gameState.teams.map(team => {
                         const result = team.roundResults.find(r => r.round === gameState.currentRound);
-                        const rate = result?.cumulativeProfitRate || 0;
-                        const maxRate = Math.max(...gameState.teams.map(t => Math.abs(t.roundResults.find(r => r.round === gameState.currentRound)?.cumulativeProfitRate || 0)), 10);
-                        const height = Math.min(100, (Math.abs(rate) / maxRate) * 100);
+                        const roundRate = result?.profitRate || 0; // 라운드별 수익률
+                        const maxRate = Math.max(...gameState.teams.map(t => Math.abs(t.roundResults.find(r => r.round === gameState.currentRound)?.profitRate || 0)), 10);
+                        const height = Math.min(100, (Math.abs(roundRate) / maxRate) * 100);
 
                         return (
                           <div key={team.id} className="flex-1 flex flex-col items-center">
-                            <span className={`text-sm font-bold mb-2 ${rate >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                              {rate >= 0 ? '+' : ''}{rate.toFixed(1)}%
+                            <span className={`text-xs font-bold mb-1 ${roundRate >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                              {roundRate >= 0 ? '+' : ''}{roundRate.toFixed(1)}%
                             </span>
-                            <div className="w-full flex flex-col justify-end h-32">
+                            <div className="w-full flex flex-col justify-end h-24">
                               <div
                                 className={`w-full rounded-t-lg transition-all duration-1000 ${
-                                  rate >= 0 ? 'bg-gradient-to-t from-emerald-600 to-emerald-400' : 'bg-gradient-to-t from-rose-600 to-rose-400'
+                                  roundRate >= 0 ? 'bg-gradient-to-t from-emerald-600 to-emerald-400' : 'bg-gradient-to-t from-rose-600 to-rose-400'
                                 }`}
                                 style={{ height: `${height}%` }}
                               />
                             </div>
-                            <span className="text-xs text-slate-400 mt-2 font-bold">Team {team.number}</span>
+                            <span className="text-[10px] text-slate-400 mt-1 font-bold">T{team.number}</span>
                           </div>
                         );
                       })}
                     </div>
                   </div>
 
+                  {/* 누적 수익률 그래프 */}
+                  {gameState.currentRound > 1 && (
+                    <div>
+                      <h3 className="text-base font-bold text-white mb-3">📈 누적 수익률 (R1~R{gameState.currentRound})</h3>
+                      <div className="flex items-end gap-3 h-40 p-4 bg-slate-700/30 rounded-xl">
+                        {gameState.teams.map(team => {
+                          const result = team.roundResults.find(r => r.round === gameState.currentRound);
+                          const cumulativeRate = result?.cumulativeProfitRate || 0; // 누적 수익률
+                          const maxRate = Math.max(...gameState.teams.map(t => Math.abs(t.roundResults.find(r => r.round === gameState.currentRound)?.cumulativeProfitRate || 0)), 10);
+                          const height = Math.min(100, (Math.abs(cumulativeRate) / maxRate) * 100);
+
+                          return (
+                            <div key={team.id} className="flex-1 flex flex-col items-center">
+                              <span className={`text-xs font-bold mb-1 ${cumulativeRate >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                {cumulativeRate >= 0 ? '+' : ''}{cumulativeRate.toFixed(1)}%
+                              </span>
+                              <div className="w-full flex flex-col justify-end h-24">
+                                <div
+                                  className={`w-full rounded-t-lg transition-all duration-1000 ${
+                                    cumulativeRate >= 0 ? 'bg-gradient-to-t from-indigo-600 to-indigo-400' : 'bg-gradient-to-t from-rose-600 to-rose-400'
+                                  }`}
+                                  style={{ height: `${height}%` }}
+                                />
+                              </div>
+                              <span className="text-[10px] text-slate-400 mt-1 font-bold">T{team.number}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
                   {/* 팀별 상세 수익률 테이블 */}
                   <div className="p-4 rounded-xl bg-slate-700/30">
-                    <h4 className="text-sm font-bold text-slate-300 mb-3">팀별 상세 수익률</h4>
+                    <h4 className="text-sm font-bold text-slate-300 mb-3">🏆 팀별 상세 수익률</h4>
                     <div className="space-y-2">
                       {[...gameState.teams]
                         .sort((a, b) => {
@@ -1306,6 +1400,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                         .map((team, idx) => {
                           const result = team.roundResults.find(r => r.round === gameState.currentRound);
                           const totalValue = result?.totalValue || team.currentCash;
+                          const roundRate = result?.profitRate || 0;
                           const cumulativeRate = result?.cumulativeProfitRate || 0;
 
                           return (
@@ -1317,11 +1412,17 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                                 <span className="font-bold text-white">Team {team.number}</span>
                               </div>
                               <div className="text-right">
-                                <p className="text-sm text-slate-400">{(totalValue / 10000).toFixed(0)}만원</p>
-                                <p className={`font-bold ${cumulativeRate >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                                  {cumulativeRate >= 0 ? '+' : ''}{cumulativeRate.toFixed(1)}%
-                                  {gameState.currentRound > 1 && <span className="text-xs text-slate-500 ml-1">(누적)</span>}
-                                </p>
+                                <p className="text-xs text-slate-400">{(totalValue / 10000).toFixed(0)}만원</p>
+                                <div className="flex items-center gap-2">
+                                  <span className={`text-xs font-bold ${roundRate >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                    R{gameState.currentRound}: {roundRate >= 0 ? '+' : ''}{roundRate.toFixed(1)}%
+                                  </span>
+                                  {gameState.currentRound > 1 && (
+                                    <span className={`text-sm font-bold ${cumulativeRate >= 0 ? 'text-indigo-400' : 'text-rose-400'}`}>
+                                      (누적: {cumulativeRate >= 0 ? '+' : ''}{cumulativeRate.toFixed(1)}%)
+                                    </span>
+                                  )}
+                                </div>
                               </div>
                             </div>
                           );

@@ -86,51 +86,51 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
       <header className="bg-gradient-to-r from-slate-800/95 to-slate-900/95 backdrop-blur-xl p-4 md:p-6 border-b border-slate-700/50 sticky top-0 z-40 animate-fade-in-up">
         <div className="max-w-4xl mx-auto">
           {/* 팀 정보 & 상태 */}
-          <div className="flex justify-between items-center mb-4">
-            <div className="flex items-center gap-3">
+          <div className="flex justify-between items-center mb-3 md:mb-4">
+            <div className="flex items-center gap-2 md:gap-3">
               {/* 나가기 버튼 */}
               {onExitRequest && (
                 <button
                   onClick={onExitRequest}
-                  className="w-10 h-10 rounded-xl bg-slate-700/50 border border-slate-600/50 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-600/50 hover:border-rose-500/50 transition-all"
+                  className="w-8 h-8 md:w-10 md:h-10 rounded-lg bg-slate-700/50 border border-slate-600/50 flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-600/50 hover:border-rose-500/50 transition-all flex-shrink-0"
                   title="방 나가기"
                 >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
                   </svg>
                 </button>
               )}
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-black text-lg shadow-lg">
+              <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-black text-base md:text-lg shadow-lg flex-shrink-0">
                 {myTeam.number}
               </div>
-              <div>
-                <h2 className="text-xl font-black text-white">Team {myTeam.number}</h2>
-                <p className="text-xs text-slate-400">{myTeam.leaderName}</p>
+              <div className="min-w-0">
+                <h2 className="text-base md:text-xl font-black text-white truncate">Team {myTeam.number}</h2>
+                <p className="text-[10px] md:text-xs text-slate-400 truncate">{myTeam.leaderName}</p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="bg-indigo-500/20 text-indigo-300 px-3 py-1 rounded-full text-xs font-bold border border-indigo-500/30">
+            <div className="flex items-center gap-1 md:gap-2 flex-shrink-0">
+              <span className="bg-indigo-500/20 text-indigo-300 px-2 md:px-3 py-1 rounded-full text-[10px] md:text-xs font-bold border border-indigo-500/30">
                 R{gameState.currentRound}
               </span>
-              <span className="bg-purple-500/20 text-purple-300 px-3 py-1 rounded-full text-xs font-bold border border-purple-500/30">
+              <span className="bg-purple-500/20 text-purple-300 px-2 md:px-3 py-1 rounded-full text-[10px] md:text-xs font-bold border border-purple-500/30 max-w-[80px] md:max-w-none truncate">
                 {STEP_NAMES[gameState.currentStep]}
               </span>
             </div>
           </div>
 
           {/* 자산 현황 */}
-          <div className="grid grid-cols-3 gap-3">
-            <div className="p-3 rounded-xl bg-slate-700/30 border border-slate-600/30">
-              <p className="text-[10px] text-slate-400 uppercase font-bold mb-1">Total Assets</p>
-              <p className="text-lg font-black text-white font-display">{totalAssets.toLocaleString()}원</p>
+          <div className="grid grid-cols-3 gap-2">
+            <div className="p-2 md:p-3 rounded-lg bg-slate-700/30 border border-slate-600/30">
+              <p className="text-[9px] md:text-[10px] text-slate-400 uppercase font-bold mb-1">총 자산</p>
+              <p className="text-sm md:text-lg font-black text-white font-display truncate">{totalAssets.toLocaleString()}</p>
             </div>
-            <div className="p-3 rounded-xl bg-slate-700/30 border border-slate-600/30">
-              <p className="text-[10px] text-slate-400 uppercase font-bold mb-1">Cash</p>
-              <p className="text-lg font-black text-emerald-400 font-display">{myTeam.currentCash.toLocaleString()}원</p>
+            <div className="p-2 md:p-3 rounded-lg bg-slate-700/30 border border-slate-600/30">
+              <p className="text-[9px] md:text-[10px] text-slate-400 uppercase font-bold mb-1">현금</p>
+              <p className="text-sm md:text-lg font-black text-emerald-400 font-display truncate">{myTeam.currentCash.toLocaleString()}</p>
             </div>
-            <div className="p-3 rounded-xl bg-slate-700/30 border border-slate-600/30">
-              <p className="text-[10px] text-slate-400 uppercase font-bold mb-1">Profit</p>
-              <p className={`text-lg font-black font-display ${profitRate >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+            <div className="p-2 md:p-3 rounded-lg bg-slate-700/30 border border-slate-600/30">
+              <p className="text-[9px] md:text-[10px] text-slate-400 uppercase font-bold mb-1">수익률</p>
+              <p className={`text-sm md:text-lg font-black font-display ${profitRate >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                 {profitRate >= 0 ? '+' : ''}{profitRate.toFixed(1)}%
               </p>
             </div>
@@ -228,7 +228,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
               <div className="flex gap-2 overflow-x-auto pb-2">
                 <button
                   onClick={() => setSelectedCategory(null)}
-                  className={`px-4 py-2 rounded-xl font-bold text-sm whitespace-nowrap transition-all ${
+                  className={`px-3 py-2 rounded-xl font-bold text-xs whitespace-nowrap transition-all ${
                     selectedCategory === null
                       ? 'bg-indigo-600 text-white'
                       : 'bg-slate-700/50 text-slate-400 hover:text-white'
@@ -236,19 +236,22 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
                 >
                   전체
                 </button>
-                {[0, 1, 2, 3, 4].map(cat => (
-                  <button
-                    key={cat}
-                    onClick={() => setSelectedCategory(cat)}
-                    className={`px-4 py-2 rounded-xl font-bold text-sm whitespace-nowrap transition-all ${
-                      selectedCategory === cat
-                        ? 'bg-indigo-600 text-white'
-                        : 'bg-slate-700/50 text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    카테고리 {cat}
-                  </button>
-                ))}
+                {[0, 1, 2, 3, 4].map(cat => {
+                  const categoryNames = ['업종정보', '1R 정보', '2R 정보', '3R 정보', '4R 정보'];
+                  return (
+                    <button
+                      key={cat}
+                      onClick={() => setSelectedCategory(cat)}
+                      className={`px-3 py-2 rounded-xl font-bold text-xs whitespace-nowrap transition-all ${
+                        selectedCategory === cat
+                          ? 'bg-indigo-600 text-white'
+                          : 'bg-slate-700/50 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      {categoryNames[cat]}
+                    </button>
+                  );
+                })}
                 <button
                   onClick={() => setSelectedCategory(-1)}
                   className={`px-4 py-2 rounded-xl font-bold text-sm whitespace-nowrap transition-all ${
@@ -308,7 +311,9 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
                             </span>
                             <span className="text-sm font-bold text-white">{card.stockId}사 정보</span>
                           </div>
-                          <p className="text-xs text-slate-500 mt-0.5">카테고리 {card.categoryIndex}</p>
+                          <p className="text-xs text-slate-500 mt-0.5">
+                            {['업종정보', '1R 정보', '2R 정보', '3R 정보', '4R 정보'][card.categoryIndex]}
+                          </p>
                         </div>
 
                         {/* 상태 표시 */}
@@ -416,22 +421,29 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
 
                 return (
                   <div className="iso-card bg-gradient-to-br from-slate-800/90 to-slate-900/95 rounded-2xl p-5 border border-slate-700/50">
-                    <h3 className="text-lg font-black text-white mb-4 flex items-center gap-2">
-                      <span className="text-2xl">📊</span>
+                    {/* 시드머니 기준 안내 */}
+                    <div className="mb-4 p-2 rounded-lg bg-indigo-500/20 border border-indigo-500/30">
+                      <p className="text-indigo-300 text-xs font-medium text-center">
+                        💰 시드머니: <span className="font-bold">1,000만원</span> 기준
+                      </p>
+                    </div>
+
+                    <h3 className="text-base font-black text-white mb-3 flex items-center gap-2">
+                      <span className="text-xl">📊</span>
                       라운드별 수익률
                     </h3>
 
-                    <div className="flex items-end gap-4 h-40 p-4 bg-slate-700/30 rounded-xl">
+                    <div className="flex items-end gap-3 h-36 p-3 bg-slate-700/30 rounded-xl">
                       {visibleResults.map((result, idx) => {
                         const maxRate = Math.max(...visibleResults.map(r => Math.abs(r.profitRate)), 10);
                         const height = Math.min(100, (Math.abs(result.profitRate) / maxRate) * 100);
 
                         return (
                           <div key={idx} className="flex-1 flex flex-col items-center">
-                            <span className={`text-xs font-bold mb-2 ${result.profitRate >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                            <span className={`text-[10px] font-bold mb-1 ${result.profitRate >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                               {result.profitRate >= 0 ? '+' : ''}{result.profitRate.toFixed(1)}%
                             </span>
-                            <div className="w-full flex flex-col justify-end h-24">
+                            <div className="w-full flex flex-col justify-end h-20">
                               <div
                                 className={`w-full rounded-t-lg transition-all ${
                                   result.profitRate >= 0
@@ -441,23 +453,40 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
                                 style={{ height: `${height}%` }}
                               />
                             </div>
-                            <span className="text-xs text-slate-400 mt-2 font-bold">R{result.round}</span>
+                            <span className="text-[10px] text-slate-400 mt-1 font-bold">R{result.round}</span>
                           </div>
                         );
                       })}
                     </div>
 
-                    {/* 누적 수익률 */}
-                    <div className="mt-4 p-4 rounded-xl bg-slate-700/30 text-center">
-                      <p className="text-xs text-slate-400 uppercase font-bold mb-1">누적 수익률</p>
-                      <p className={`text-3xl font-black font-display ${
-                        (visibleResults[visibleResults.length - 1]?.cumulativeProfitRate || 0) >= 0
-                          ? 'text-emerald-400'
-                          : 'text-rose-400'
-                      }`}>
-                        {(visibleResults[visibleResults.length - 1]?.cumulativeProfitRate || 0) >= 0 ? '+' : ''}
-                        {(visibleResults[visibleResults.length - 1]?.cumulativeProfitRate || 0).toFixed(1)}%
-                      </p>
+                    {/* 라운드별 & 누적 수익률 분리 표시 */}
+                    <div className="mt-4 grid grid-cols-2 gap-3">
+                      {/* 마지막 라운드 수익률 */}
+                      <div className="p-3 rounded-lg bg-slate-700/30 text-center">
+                        <p className="text-[10px] text-slate-400 uppercase font-bold mb-1">
+                          R{visibleResults[visibleResults.length - 1]?.round} 수익률
+                        </p>
+                        <p className={`text-xl font-black font-display ${
+                          (visibleResults[visibleResults.length - 1]?.profitRate || 0) >= 0
+                            ? 'text-emerald-400'
+                            : 'text-rose-400'
+                        }`}>
+                          {(visibleResults[visibleResults.length - 1]?.profitRate || 0) >= 0 ? '+' : ''}
+                          {(visibleResults[visibleResults.length - 1]?.profitRate || 0).toFixed(1)}%
+                        </p>
+                      </div>
+                      {/* 누적 수익률 */}
+                      <div className="p-3 rounded-lg bg-indigo-500/20 border border-indigo-500/30 text-center">
+                        <p className="text-[10px] text-indigo-300 uppercase font-bold mb-1">총 누적 수익률</p>
+                        <p className={`text-xl font-black font-display ${
+                          (visibleResults[visibleResults.length - 1]?.cumulativeProfitRate || 0) >= 0
+                            ? 'text-indigo-400'
+                            : 'text-rose-400'
+                        }`}>
+                          {(visibleResults[visibleResults.length - 1]?.cumulativeProfitRate || 0) >= 0 ? '+' : ''}
+                          {(visibleResults[visibleResults.length - 1]?.cumulativeProfitRate || 0).toFixed(1)}%
+                        </p>
+                      </div>
                     </div>
                   </div>
                 );
