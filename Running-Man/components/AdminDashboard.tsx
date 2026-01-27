@@ -321,6 +321,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
         isInvestmentLocked: true,
         isTimerRunning: false,
         isInvestmentConfirmed: true,
+        isPortfolioLocked: true,
         teams: current.teams.map(team => {
           const cashBeforeSale = team.currentCash;
 
@@ -414,7 +415,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
 
     await updateGameState((current) => ({
       ...current,
-      revealedResults: true
+      revealedResults: true,
+      isPortfolioLocked: false
     }));
 
     setShowResultModal(true);

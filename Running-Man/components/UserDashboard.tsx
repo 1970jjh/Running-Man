@@ -330,7 +330,21 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
           )}
 
           {/* 포트폴리오 탭 */}
-          {activeTab === 'portfolio' && (
+          {activeTab === 'portfolio' && gameState.isPortfolioLocked && (
+            <div className="flex flex-col items-center justify-center py-20">
+              <div className="w-20 h-20 mb-6 rounded-2xl bg-slate-700/50 flex items-center justify-center">
+                <svg className="w-10 h-10 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+                </svg>
+              </div>
+              <h3 className="text-xl font-black text-slate-400 mb-2">포트폴리오 비공개</h3>
+              <p className="text-sm text-slate-500 text-center">
+                결과 발표 후 확인할 수 있습니다.<br/>
+                잠시만 기다려주세요!
+              </p>
+            </div>
+          )}
+          {activeTab === 'portfolio' && !gameState.isPortfolioLocked && (
             <div className="space-y-6">
               {/* 보유 종목 */}
               <div className="iso-card bg-gradient-to-br from-slate-800/90 to-slate-900/95 rounded-2xl p-5 border border-slate-700/50">
@@ -571,14 +585,22 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
         </button>
 
         <button
-          onClick={() => setActiveTab('portfolio')}
+          onClick={() => !gameState.isPortfolioLocked && setActiveTab('portfolio')}
           className={`flex flex-col items-center gap-1 transition-all ${
-            activeTab === 'portfolio' ? 'text-indigo-400 scale-110' : 'text-slate-500'
+            gameState.isPortfolioLocked
+              ? 'text-slate-600 opacity-50 cursor-not-allowed'
+              : activeTab === 'portfolio' ? 'text-indigo-400 scale-110' : 'text-slate-500'
           }`}
         >
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
-          </svg>
+          {gameState.isPortfolioLocked ? (
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+            </svg>
+          ) : (
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+            </svg>
+          )}
           <span className="text-[10px] font-bold uppercase">Portfolio</span>
         </button>
       </nav>
