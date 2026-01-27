@@ -728,8 +728,15 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
               </span>
             </div>
             <h2 className="text-2xl font-black text-indigo-300 mb-2">{gameState.currentRound}R</h2>
-            <p className="text-3xl font-black text-white mb-6">
+            <p className="text-3xl font-black text-white mb-4">
               {STEP_NAMES[gameState.currentStep]}
+            </p>
+            <p className="text-sm text-slate-400 mb-6">
+              {gameState.currentStep === GameStep.MINI_GAME && '미니게임을 통해 정보 구매권을 획득할 수 있습니다.'}
+              {gameState.currentStep === GameStep.INFO_PURCHASE && '획득한 정보 구매권을 통해 원하는 정보를 구매할 수 있습니다.'}
+              {gameState.currentStep === GameStep.INFO_NEGOTIATION && '가진 정보를 가지고 타 팀과 자유롭게 협상할 수 있습니다.'}
+              {gameState.currentStep === GameStep.INVESTMENT && '팀 별로 의사결정을 통하여 최종 투자를 진행합니다.'}
+              {gameState.currentStep === GameStep.RESULT && '투자를 통한 결과를 공개합니다.'}
             </p>
             <button
               onClick={() => setShowStepNotification(false)}
