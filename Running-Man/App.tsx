@@ -6,7 +6,7 @@ import AdminDashboard from './components/AdminDashboard';
 import UserDashboard from './components/UserDashboard';
 import Login from './components/Login';
 import FullScreenButton from './components/FullScreenButton';
-import { subscribeToRoom, updateRoomGameState, joinTeam, isFirebaseReady, getRoom, leaveTeam } from './firebase';
+import { subscribeToRoom, updateRoomGameState, joinTeam, isFirebaseReady, getRoom, leaveTeam, executeTeamTrade, TradeRequest } from './firebase';
 
 type AppView = 'login' | 'admin' | 'user';
 
@@ -229,6 +229,15 @@ const App: React.FC = () => {
   };
 
   const myTeam = gameState?.teams.find(t => t.id === currentTeamId);
+  const myTeamIndex = gameState?.teams.findIndex(t => t.id === currentTeamId) ?? -1;
+
+  // 거래 실행 함수 (Firebase Transaction 기반)
+  const handleTrade = useCallback(async (trade: Omit<TradeRequest, 'roomId' | 'teamIndex'>): Promise<{ success: boolean; error?: string }> => {
+    if (!currentRoomId || myTeamIndex < 0) {
+      return { success: false, error: '방 또는 팀 정보가 없습니다.' };
+    }
+    return executeTeamTrade({ ...trade, roomId: currentRoomId, teamIndex: myTeamIndex });
+  }, [currentRoomId, myTeamIndex]);
 
   return (
     <div className="min-h-screen text-white flex flex-col font-sans selection:bg-indigo-500/30">
@@ -255,6 +264,7 @@ const App: React.FC = () => {
           myTeam={myTeam}
           setGameState={handleSetGameState}
           onExitRequest={handleUserExitRequest}
+          onTrade={handleTrade}
         />
       )}
 
