@@ -324,11 +324,56 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
         teams: current.teams.map(team => {
           const cashBeforeSale = team.currentCash;
 
-          const portfolioValueAtNextRound = Object.entries(team.portfolio).reduce((sum, [stockId, qty]) => {
+          // 자동 매도 거래 내역 생성
+          const autoSellTransactions: {
+            id: string;
+            round: number;
+            stockId: string;
+            stockName: string;
+            type: 'SELL';
+            quantity: number;
+            pricePerShare: number;
+            totalAmount: number;
+            timestamp: number;
+            profitLoss?: number;
+            profitLossRate?: number;
+          }[] = [];
+
+          let portfolioValueAtNextRound = 0;
+
+          Object.entries(team.portfolio).forEach(([stockId, qty]) => {
+            if (qty <= 0) return;
             const stock = current.stocks.find(s => s.id === stockId);
-            const nextRoundPrice = stock?.prices[nextRound] || stock?.prices[currentRound] || 0;
-            return sum + (qty * nextRoundPrice);
-          }, 0);
+            if (!stock) return;
+            const nextRoundPrice = stock.prices[nextRound] || stock.prices[currentRound] || 0;
+            const sellAmount = qty * nextRoundPrice;
+            portfolioValueAtNextRound += sellAmount;
+
+            // 매수 평균가 계산
+            const buyTxs = (team.transactionHistory || []).filter(
+              tx => tx.stockId === stockId && tx.type === 'BUY'
+            );
+            const totalBought = buyTxs.reduce((sum, tx) => sum + tx.quantity, 0);
+            const totalBoughtAmount = buyTxs.reduce((sum, tx) => sum + tx.totalAmount, 0);
+            const avgBuyPrice = totalBought > 0 ? totalBoughtAmount / totalBought : nextRoundPrice;
+            const costBasis = qty * avgBuyPrice;
+            const profitLoss = sellAmount - costBasis;
+            const profitLossRate = costBasis > 0 ? (profitLoss / costBasis) * 100 : 0;
+
+            autoSellTransactions.push({
+              id: `tx-auto-${Date.now()}-${stockId}`,
+              round: currentRound,
+              stockId,
+              stockName: stock.name,
+              type: 'SELL',
+              quantity: qty,
+              pricePerShare: nextRoundPrice,
+              totalAmount: sellAmount,
+              timestamp: Date.now(),
+              profitLoss,
+              profitLossRate
+            });
+          });
 
           const cashAfterSale = cashBeforeSale + portfolioValueAtNextRound;
           const profitRate = ((cashAfterSale - INITIAL_SEED_MONEY) / INITIAL_SEED_MONEY) * 100;
@@ -348,7 +393,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
             ...team,
             currentCash: cashAfterSale,
             portfolio: {},
-            roundResults: [...existingResults, newRoundResult]
+            roundResults: [...existingResults, newRoundResult],
+            transactionHistory: [...(team.transactionHistory || []), ...autoSellTransactions]
           };
         })
       };
