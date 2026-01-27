@@ -187,7 +187,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     if (!gameState) return;
 
     await updateGameState((current) => {
-      const roundIdx = current.currentRound;
+      const roundIdx = current.currentRound - 1;
 
       return {
         ...current,
@@ -331,7 +331,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
 
     await updateGameState((current) => {
       const currentRound = current.currentRound;
-      const nextRound = currentRound + 1;
+      // 결과 가격 인덱스: prices[currentRound] (투자 시 prices[currentRound-1], 결과는 다음 인덱스)
+      const resultPriceIdx = currentRound;
 
       return {
         ...current,
@@ -363,7 +364,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
             if (qty <= 0) return;
             const stock = current.stocks.find(s => s.id === stockId);
             if (!stock) return;
-            const nextRoundPrice = stock.prices[nextRound] || stock.prices[currentRound] || 0;
+            const nextRoundPrice = stock.prices[resultPriceIdx] || stock.prices[currentRound - 1] || 0;
             const sellAmount = qty * nextRoundPrice;
             portfolioValueAtNextRound += sellAmount;
 
@@ -1154,7 +1155,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               const portfolioEntries = Object.entries(team.portfolio).filter(([_, qty]) => qty > 0);
               const portfolioValue = portfolioEntries.reduce((sum, [stockId, qty]) => {
                 const stock = gameState.stocks.find(s => s.id === stockId);
-                const price = stock?.prices[gameState.currentRound] || 0;
+                const price = stock?.prices[gameState.currentRound - 1] || 0;
                 return sum + (qty * price);
               }, 0);
               const totalAsset = team.currentCash + portfolioValue;
@@ -1198,7 +1199,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                       <div className="space-y-1 max-h-32 overflow-y-auto">
                         {portfolioEntries.map(([stockId, qty]) => {
                           const stock = gameState.stocks.find(s => s.id === stockId);
-                          const price = stock?.prices[gameState.currentRound] || 0;
+                          const price = stock?.prices[gameState.currentRound - 1] || 0;
                           const value = qty * price;
                           return (
                             <div key={stockId} className="flex justify-between items-center text-xs bg-slate-600/30 px-2 py-1 rounded">
@@ -1337,16 +1338,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                     <div className="space-y-2 max-h-[300px] overflow-y-auto">
                       {[...gameState.stocks]
                         .map(stock => {
-                          const investedPrice = stock.prices[gameState.currentRound];
-                          const resultPrice = stock.prices[gameState.currentRound + 1] || stock.prices[gameState.currentRound];
+                          const investedPrice = stock.prices[gameState.currentRound - 1];
+                          const resultPrice = stock.prices[gameState.currentRound] || stock.prices[gameState.currentRound - 1];
                           const change = ((resultPrice - investedPrice) / investedPrice) * 100;
                           return { stock, change, investedPrice, resultPrice };
                         })
                         .sort((a, b) => b.change - a.change)
                         .map(({ stock, change, resultPrice }) => {
                           const maxChange = Math.max(...gameState.stocks.map(s => {
-                            const inv = s.prices[gameState.currentRound];
-                            const res = s.prices[gameState.currentRound + 1] || s.prices[gameState.currentRound];
+                            const inv = s.prices[gameState.currentRound - 1];
+                            const res = s.prices[gameState.currentRound] || s.prices[gameState.currentRound - 1];
                             return Math.abs(((res - inv) / inv) * 100);
                           }), 10);
                           const barWidth = Math.min(100, (Math.abs(change) / maxChange) * 100);
@@ -1385,8 +1386,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                   {/* 종목 카드 그리드 */}
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                     {gameState.stocks.map(stock => {
-                      const investedPrice = stock.prices[gameState.currentRound]; // 투자 시점 가격
-                      const resultPrice = stock.prices[gameState.currentRound + 1] || stock.prices[gameState.currentRound]; // 결과 가격 (다음 라운드)
+                      const investedPrice = stock.prices[gameState.currentRound - 1]; // 투자 시점 가격
+                      const resultPrice = stock.prices[gameState.currentRound] || stock.prices[gameState.currentRound - 1]; // 결과 가격 (다음 라운드)
                       const change = ((resultPrice - investedPrice) / investedPrice) * 100;
 
                       return (
@@ -1685,12 +1686,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                           </td>
                           <td className="p-3 text-right border-b border-slate-600/30">
                             <span className="text-white font-bold text-sm">
-                              {stock.prices[gameState.currentRound].toLocaleString()}
+                              {stock.prices[gameState.currentRound - 1].toLocaleString()}
                             </span>
                           </td>
                           {gameState.teams.map(team => {
                             const qty = team.portfolio[stock.id] || 0;
-                            const value = qty * stock.prices[gameState.currentRound];
+                            const value = qty * stock.prices[gameState.currentRound - 1];
                             return (
                               <td key={team.id} className="p-3 text-center border-b border-slate-600/30">
                                 {qty > 0 ? (
@@ -1718,7 +1719,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                       {gameState.teams.map(team => {
                         const totalValue = Object.entries(team.portfolio).reduce((sum, [stockId, qty]) => {
                           const stock = gameState.stocks.find(s => s.id === stockId);
-                          return sum + (qty * (stock?.prices[gameState.currentRound] || 0));
+                          return sum + (qty * (stock?.prices[gameState.currentRound - 1] || 0));
                         }, 0);
                         const totalShares = Object.values(team.portfolio).reduce((sum, qty) => sum + qty, 0);
                         return (
@@ -1756,7 +1757,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                       {gameState.teams.map(team => {
                         const portfolioValue = Object.entries(team.portfolio).reduce((sum, [stockId, qty]) => {
                           const stock = gameState.stocks.find(s => s.id === stockId);
-                          return sum + (qty * (stock?.prices[gameState.currentRound] || 0));
+                          return sum + (qty * (stock?.prices[gameState.currentRound - 1] || 0));
                         }, 0);
                         const totalAsset = team.currentCash + portfolioValue;
                         const profitRate = ((totalAsset - INITIAL_SEED_MONEY) / INITIAL_SEED_MONEY) * 100;

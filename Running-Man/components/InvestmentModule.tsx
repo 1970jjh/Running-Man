@@ -17,8 +17,8 @@ const InvestmentModule: React.FC<InvestmentModuleProps> = ({ gameState, myTeam, 
   const [showLimitWarning, setShowLimitWarning] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false); // 거래 처리 중 상태
 
-  // 현재 라운드의 주가 인덱스
-  const currentRoundIdx = gameState.currentRound;
+  // 현재 라운드의 주가 인덱스 (prices[0]=2010=1R, prices[1]=1R결과=2R, ...)
+  const currentRoundIdx = gameState.currentRound - 1;
 
   // 한 종목당 최대 투자 가능 금액 (총 자산의 30%)
   const maxInvestablePerStock = totalAssets * MAX_INVESTMENT_RATIO;
@@ -177,7 +177,7 @@ const InvestmentModule: React.FC<InvestmentModuleProps> = ({ gameState, myTeam, 
 
             // 주가 변동률 계산: 1R은 0%, 2R부터는 이전 라운드 대비
             let change = 0;
-            if (currentRoundIdx > 1) {
+            if (currentRoundIdx > 0) {
               const prevPrice = stock.prices[currentRoundIdx - 1];
               change = ((price - prevPrice) / prevPrice) * 100;
             }
@@ -209,7 +209,7 @@ const InvestmentModule: React.FC<InvestmentModuleProps> = ({ gameState, myTeam, 
                 {/* 가격 & 변동 (이전 라운드 대비) */}
                 <div className="text-right">
                   <p className="font-black text-white font-display">{price.toLocaleString()}원</p>
-                  {currentRoundIdx === 1 ? (
+                  {currentRoundIdx === 0 ? (
                     <p className="text-xs font-bold text-slate-500">- 0.0%</p>
                   ) : (
                     <p className={`text-xs font-bold ${change >= 0 ? 'text-rose-400' : 'text-blue-400'}`}>

@@ -34,7 +34,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
   const totalAssets = useMemo(() => {
     const stockValue = Object.entries(myTeam.portfolio).reduce((acc, [id, qty]) => {
       const stock = gameState.stocks.find(s => s.id === id);
-      const price = stock?.prices[gameState.currentRound] || 0;
+      const price = stock?.prices[gameState.currentRound - 1] || 0;
       return acc + (qty * price);
     }, 0);
     return myTeam.currentCash + stockValue;
@@ -363,13 +363,13 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
                         const stock = gameState.stocks.find(s => s.id === stockId);
                         if (!stock) return null;
 
-                        const currentPrice = stock.prices[gameState.currentRound];
+                        const currentPrice = stock.prices[gameState.currentRound - 1];
                         const value = qty * currentPrice;
 
                         // 주가 변동률: 1R은 0%, 2R부터는 이전 라운드 대비
                         let change = 0;
                         if (gameState.currentRound > 1) {
-                          const prevPrice = stock.prices[gameState.currentRound - 1];
+                          const prevPrice = stock.prices[gameState.currentRound - 2];
                           change = ((currentPrice - prevPrice) / prevPrice) * 100;
                         }
 
