@@ -1640,13 +1640,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
 
       {/* 투자 테이블 모달 - 팀별 종목 보유 현황 */}
       {showInvestmentTable && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="iso-card bg-gradient-to-br from-slate-800 to-slate-900 rounded-3xl max-w-6xl w-full max-h-[90vh] overflow-auto border border-slate-700/50">
-            <div className="p-6 md:p-8">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-black text-white flex items-center gap-2">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-start justify-center p-2 overflow-auto">
+          <div className="iso-card bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl max-w-[95vw] w-full border border-slate-700/50 my-2">
+            <div className="p-3 md:p-5">
+              <div className="flex justify-between items-center mb-3">
+                <h2 className="text-lg font-black text-white flex items-center gap-2">
                   📊 전체 투자 현황 테이블
-                  <span className="text-sm font-normal text-slate-400 ml-2">Round {gameState.currentRound}</span>
+                  <span className="text-xs font-normal text-slate-400 ml-1">Round {gameState.currentRound}</span>
                 </h2>
                 <button
                   onClick={() => setShowInvestmentTable(false)}
@@ -1659,25 +1659,25 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               </div>
 
               {/* 테이블 설명 */}
-              <div className="mb-4 p-3 rounded-xl bg-indigo-500/20 border border-indigo-500/30">
-                <p className="text-indigo-300 text-sm font-medium text-center">
+              <div className="mb-2 p-2 rounded-lg bg-indigo-500/20 border border-indigo-500/30">
+                <p className="text-indigo-300 text-xs font-medium text-center">
                   각 팀이 어떤 종목을 몇 주 보유하고 있는지 한눈에 확인할 수 있습니다.
                 </p>
               </div>
 
               {/* 투자 테이블 */}
               <div className="overflow-x-auto">
-                <table className="w-full border-collapse">
+                <table className="w-full border-collapse text-xs">
                   <thead>
                     <tr>
-                      <th className="sticky left-0 bg-slate-800 p-3 text-left text-xs font-bold text-slate-400 uppercase border-b border-slate-600/50 z-10">
+                      <th className="sticky left-0 bg-slate-800 px-2 py-1.5 text-left text-[10px] font-bold text-slate-400 uppercase border-b border-slate-600/50 z-10">
                         종목
                       </th>
-                      <th className="bg-slate-800 p-3 text-right text-xs font-bold text-slate-400 uppercase border-b border-slate-600/50">
+                      <th className="bg-slate-800 px-2 py-1.5 text-right text-[10px] font-bold text-slate-400 uppercase border-b border-slate-600/50">
                         주가
                       </th>
                       {gameState.teams.map(team => (
-                        <th key={team.id} className="bg-slate-800 p-3 text-center text-xs font-bold text-indigo-300 uppercase border-b border-slate-600/50 min-w-[80px]">
+                        <th key={team.id} className="bg-slate-800 px-2 py-1.5 text-center text-[10px] font-bold text-indigo-300 uppercase border-b border-slate-600/50">
                           {team.teamName}
                         </th>
                       ))}
@@ -1688,15 +1688,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                       const hasAnyInvestment = gameState.teams.some(team => (team.portfolio[stock.id] || 0) > 0);
                       return (
                         <tr key={stock.id} className={`${idx % 2 === 0 ? 'bg-slate-700/20' : 'bg-slate-700/10'} ${hasAnyInvestment ? '' : 'opacity-50'}`}>
-                          <td className="sticky left-0 bg-slate-800 p-3 border-b border-slate-600/30 z-10">
-                            <div className="flex items-center gap-2">
-                              <span className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500/30 to-purple-500/30 flex items-center justify-center text-white font-bold text-sm">
-                                {stock.name}
-                              </span>
-                            </div>
+                          <td className="sticky left-0 bg-slate-800 px-2 py-1 border-b border-slate-600/30 z-10">
+                            <span className="w-6 h-6 rounded bg-gradient-to-br from-indigo-500/30 to-purple-500/30 flex items-center justify-center text-white font-bold text-[11px]">
+                              {stock.name}
+                            </span>
                           </td>
-                          <td className="p-3 text-right border-b border-slate-600/30">
-                            <span className="text-white font-bold text-sm">
+                          <td className="px-2 py-1 text-right border-b border-slate-600/30">
+                            <span className="text-white font-bold text-[11px]">
                               {stock.prices[gameState.currentRound - 1].toLocaleString()}
                             </span>
                           </td>
@@ -1704,11 +1702,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                             const qty = team.portfolio[stock.id] || 0;
                             const value = qty * stock.prices[gameState.currentRound - 1];
                             return (
-                              <td key={team.id} className="p-3 text-center border-b border-slate-600/30">
+                              <td key={team.id} className="px-2 py-1 text-center border-b border-slate-600/30">
                                 {qty > 0 ? (
                                   <div>
-                                    <span className="text-emerald-400 font-bold">{qty}주</span>
-                                    <p className="text-[10px] text-slate-500">{(value / 10000).toFixed(0)}만</p>
+                                    <span className="text-emerald-400 font-bold text-[11px]">{qty}주</span>
+                                    <p className="text-[9px] text-slate-500">{(value / 10000).toFixed(0)}만</p>
                                   </div>
                                 ) : (
                                   <span className="text-slate-600">-</span>
@@ -1721,11 +1719,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                     })}
                     {/* 합계 행 */}
                     <tr className="bg-indigo-500/20 font-bold">
-                      <td className="sticky left-0 bg-indigo-900/80 p-3 border-t-2 border-indigo-500/50 z-10">
-                        <span className="text-indigo-300 text-sm">합계</span>
+                      <td className="sticky left-0 bg-indigo-900/80 px-2 py-1 border-t-2 border-indigo-500/50 z-10">
+                        <span className="text-indigo-300 text-[11px]">합계</span>
                       </td>
-                      <td className="p-3 text-right border-t-2 border-indigo-500/50">
-                        <span className="text-slate-400 text-sm">-</span>
+                      <td className="px-2 py-1 text-right border-t-2 border-indigo-500/50">
+                        <span className="text-slate-400 text-[11px]">-</span>
                       </td>
                       {gameState.teams.map(team => {
                         const totalValue = Object.entries(team.portfolio).reduce((sum, [stockId, qty]) => {
@@ -1734,10 +1732,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                         }, 0);
                         const totalShares = Object.values(team.portfolio).reduce((sum, qty) => sum + qty, 0);
                         return (
-                          <td key={team.id} className="p-3 text-center border-t-2 border-indigo-500/50">
+                          <td key={team.id} className="px-2 py-1 text-center border-t-2 border-indigo-500/50">
                             <div>
-                              <span className="text-amber-400 font-bold">{totalShares}주</span>
-                              <p className="text-[10px] text-indigo-300">{(totalValue / 10000).toFixed(0)}만원</p>
+                              <span className="text-amber-400 font-bold text-[11px]">{totalShares}주</span>
+                              <p className="text-[9px] text-indigo-300">{(totalValue / 10000).toFixed(0)}만원</p>
                             </div>
                           </td>
                         );
@@ -1745,25 +1743,25 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                     </tr>
                     {/* 보유현금 행 */}
                     <tr className="bg-emerald-500/10">
-                      <td className="sticky left-0 bg-emerald-900/50 p-3 z-10">
-                        <span className="text-emerald-300 text-sm font-bold">보유현금</span>
+                      <td className="sticky left-0 bg-emerald-900/50 px-2 py-1 z-10">
+                        <span className="text-emerald-300 text-[11px] font-bold">보유현금</span>
                       </td>
-                      <td className="p-3 text-right">
-                        <span className="text-slate-400 text-sm">-</span>
+                      <td className="px-2 py-1 text-right">
+                        <span className="text-slate-400 text-[11px]">-</span>
                       </td>
                       {gameState.teams.map(team => (
-                        <td key={team.id} className="p-3 text-center">
-                          <span className="text-emerald-400 font-bold">{(team.currentCash / 10000).toFixed(0)}만</span>
+                        <td key={team.id} className="px-2 py-1 text-center">
+                          <span className="text-emerald-400 font-bold text-[11px]">{(team.currentCash / 10000).toFixed(0)}만</span>
                         </td>
                       ))}
                     </tr>
                     {/* 총자산 행 */}
                     <tr className="bg-amber-500/20 font-bold">
-                      <td className="sticky left-0 bg-amber-900/50 p-3 z-10">
-                        <span className="text-amber-300 text-sm">총자산</span>
+                      <td className="sticky left-0 bg-amber-900/50 px-2 py-1 z-10">
+                        <span className="text-amber-300 text-[11px]">총자산</span>
                       </td>
-                      <td className="p-3 text-right">
-                        <span className="text-slate-400 text-sm">-</span>
+                      <td className="px-2 py-1 text-right">
+                        <span className="text-slate-400 text-[11px]">-</span>
                       </td>
                       {gameState.teams.map(team => {
                         const portfolioValue = Object.entries(team.portfolio).reduce((sum, [stockId, qty]) => {
@@ -1773,10 +1771,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                         const totalAsset = team.currentCash + portfolioValue;
                         const profitRate = ((totalAsset - INITIAL_SEED_MONEY) / INITIAL_SEED_MONEY) * 100;
                         return (
-                          <td key={team.id} className="p-3 text-center">
+                          <td key={team.id} className="px-2 py-1 text-center">
                             <div>
-                              <span className="text-amber-400 font-bold">{(totalAsset / 10000).toFixed(0)}만</span>
-                              <p className={`text-xs ${profitRate >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                              <span className="text-amber-400 font-bold text-[11px]">{(totalAsset / 10000).toFixed(0)}만</span>
+                              <p className={`text-[9px] ${profitRate >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                                 {profitRate >= 0 ? '+' : ''}{profitRate.toFixed(1)}%
                               </p>
                             </div>
@@ -1790,7 +1788,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
 
               <button
                 onClick={() => setShowInvestmentTable(false)}
-                className="btn-3d w-full mt-6 bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-4 rounded-xl font-bold"
+                className="btn-3d w-full mt-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-3 rounded-xl font-bold text-sm"
               >
                 닫기
               </button>
