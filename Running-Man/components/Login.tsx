@@ -172,13 +172,18 @@ const Login: React.FC<LoginProps> = ({ onLogin, onAdminAccess }) => {
               관리자 입장
             </button>
 
-            <div className="mt-8 pt-6 border-t border-slate-700/50">
+            <div className="mt-8 pt-6 border-t border-slate-700/50 flex flex-col items-center gap-4">
               <div className="flex items-center justify-center gap-4 text-slate-500 text-xs">
                 <span className="flex items-center gap-1">
                   <span className={`w-2 h-2 rounded-full ${firebaseConnected ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`}></span>
                   {firebaseConnected ? '서버 연결됨' : '서버 연결 실패'}
                 </span>
               </div>
+              <img
+                src="https://i.ibb.co/tFytdkx/JJ-CREATIVE-CI-2.png"
+                alt="JJ CREATIVE"
+                className="h-8 opacity-60"
+              />
             </div>
           </div>
         )}
