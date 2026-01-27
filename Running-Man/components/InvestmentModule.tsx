@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { GameState, Team, Stock, GameStep } from '../types';
+import { GameState, Team, Stock, GameStep, Transaction } from '../types';
 import { MAX_INVESTMENT_RATIO } from '../constants';
 
 interface InvestmentModuleProps {
@@ -65,6 +65,19 @@ const InvestmentModule: React.FC<InvestmentModuleProps> = ({ gameState, myTeam, 
     // 거래 처리 중 상태로 변경
     setIsProcessing(true);
 
+    // 거래 내역 생성
+    const newTransaction: Transaction = {
+      id: `tx-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      round: gameState.currentRound,
+      stockId: selectedStock.id,
+      stockName: selectedStock.name,
+      type: 'BUY',
+      quantity: qty,
+      pricePerShare: price,
+      totalAmount: totalCost,
+      timestamp: Date.now()
+    };
+
     try {
       await setGameState(prev => ({
         ...prev,
@@ -74,7 +87,8 @@ const InvestmentModule: React.FC<InvestmentModuleProps> = ({ gameState, myTeam, 
           portfolio: {
             ...t.portfolio,
             [selectedStock.id]: (t.portfolio[selectedStock.id] || 0) + qty
-          }
+          },
+          transactionHistory: [...(t.transactionHistory || []), newTransaction]
         } : t)
       }));
       setQty(0);
@@ -103,6 +117,35 @@ const InvestmentModule: React.FC<InvestmentModuleProps> = ({ gameState, myTeam, 
     // 거래 처리 중 상태로 변경
     setIsProcessing(true);
 
+    // 매수 평균가 계산 (같은 라운드에서의 매수 내역 기반)
+    const buyTransactions = (myTeam.transactionHistory || []).filter(
+      tx => tx.stockId === selectedStock.id && tx.type === 'BUY' && tx.round === gameState.currentRound
+    );
+    const totalBought = buyTransactions.reduce((sum, tx) => sum + tx.quantity, 0);
+    const totalBoughtAmount = buyTransactions.reduce((sum, tx) => sum + tx.totalAmount, 0);
+    const avgBuyPrice = totalBought > 0 ? totalBoughtAmount / totalBought : price;
+
+    // 수익/손실 계산
+    const totalSellAmount = qty * price;
+    const costBasis = qty * avgBuyPrice;
+    const profitLoss = totalSellAmount - costBasis;
+    const profitLossRate = costBasis > 0 ? (profitLoss / costBasis) * 100 : 0;
+
+    // 거래 내역 생성
+    const newTransaction: Transaction = {
+      id: `tx-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      round: gameState.currentRound,
+      stockId: selectedStock.id,
+      stockName: selectedStock.name,
+      type: 'SELL',
+      quantity: qty,
+      pricePerShare: price,
+      totalAmount: totalSellAmount,
+      timestamp: Date.now(),
+      profitLoss,
+      profitLossRate
+    };
+
     try {
       await setGameState(prev => ({
         ...prev,
@@ -112,7 +155,8 @@ const InvestmentModule: React.FC<InvestmentModuleProps> = ({ gameState, myTeam, 
           portfolio: {
             ...t.portfolio,
             [selectedStock.id]: currentQty - qty
-          }
+          },
+          transactionHistory: [...(t.transactionHistory || []), newTransaction]
         } : t)
       }));
       setQty(0);
