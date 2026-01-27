@@ -10,7 +10,7 @@ interface UserDashboardProps {
   myTeam: Team;
   setGameState: React.Dispatch<React.SetStateAction<GameState>>;
   onExitRequest?: () => void;
-  onTrade?: (trade: Omit<TradeRequest, 'roomId' | 'teamIndex'>) => Promise<{ success: boolean; error?: string }>;
+  onTrade: (trade: Omit<TradeRequest, 'roomId' | 'teamIndex'>) => Promise<{ success: boolean; error?: string }>;
 }
 
 const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGameState, onExitRequest, onTrade }) => {
@@ -325,7 +325,6 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
               gameState={gameState}
               myTeam={myTeam}
               totalAssets={totalAssets}
-              setGameState={setGameState}
               onTrade={onTrade}
             />
           )}

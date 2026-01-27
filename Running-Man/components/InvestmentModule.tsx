@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo } from 'react';
-import { GameState, Team, Stock, GameStep, Transaction } from '../types';
+import { GameState, Team, Stock, GameStep } from '../types';
 import { MAX_INVESTMENT_RATIO } from '../constants';
 import { TradeRequest } from '../firebase';
 
@@ -8,11 +8,10 @@ interface InvestmentModuleProps {
   gameState: GameState;
   myTeam: Team;
   totalAssets: number;
-  setGameState: React.Dispatch<React.SetStateAction<GameState>>;
-  onTrade?: (trade: Omit<TradeRequest, 'roomId' | 'teamIndex'>) => Promise<{ success: boolean; error?: string }>;
+  onTrade: (trade: Omit<TradeRequest, 'roomId' | 'teamIndex'>) => Promise<{ success: boolean; error?: string }>;
 }
 
-const InvestmentModule: React.FC<InvestmentModuleProps> = ({ gameState, myTeam, totalAssets, setGameState, onTrade }) => {
+const InvestmentModule: React.FC<InvestmentModuleProps> = ({ gameState, myTeam, totalAssets, onTrade }) => {
   const [selectedStock, setSelectedStock] = useState<Stock | null>(null);
   const [qty, setQty] = useState(0);
   const [showLimitWarning, setShowLimitWarning] = useState(false);
@@ -67,47 +66,19 @@ const InvestmentModule: React.FC<InvestmentModuleProps> = ({ gameState, myTeam, 
     setIsProcessing(true);
 
     try {
-      if (onTrade) {
-        // Transaction 기반 원자적 업데이트
-        const result = await onTrade({
-          type: 'BUY',
-          stockId: selectedStock.id,
-          stockName: selectedStock.name,
-          quantity: qty,
-          pricePerShare: price,
-          round: gameState.currentRound,
-          maxInvestablePerStock
-        });
+      const result = await onTrade({
+        type: 'BUY',
+        stockId: selectedStock.id,
+        stockName: selectedStock.name,
+        quantity: qty,
+        pricePerShare: price,
+        round: gameState.currentRound,
+        maxInvestablePerStock
+      });
 
-        if (!result.success) {
-          alert(result.error || '거래 처리 중 오류가 발생했습니다.');
-          return;
-        }
-      } else {
-        // fallback: 기존 방식
-        const newTransaction: Transaction = {
-          id: `tx-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          round: gameState.currentRound,
-          stockId: selectedStock.id,
-          stockName: selectedStock.name,
-          type: 'BUY',
-          quantity: qty,
-          pricePerShare: price,
-          totalAmount: totalCost,
-          timestamp: Date.now()
-        };
-        await setGameState(prev => ({
-          ...prev,
-          teams: prev.teams.map(t => t.id === myTeam.id ? {
-            ...t,
-            currentCash: t.currentCash - totalCost,
-            portfolio: {
-              ...t.portfolio,
-              [selectedStock.id]: (t.portfolio[selectedStock.id] || 0) + qty
-            },
-            transactionHistory: [...(t.transactionHistory || []), newTransaction]
-          } : t)
-        }));
+      if (!result.success) {
+        alert(result.error || '거래 처리 중 오류가 발생했습니다.');
+        return;
       }
       setQty(0);
       setSelectedStock(null);
@@ -134,60 +105,19 @@ const InvestmentModule: React.FC<InvestmentModuleProps> = ({ gameState, myTeam, 
     setIsProcessing(true);
 
     try {
-      if (onTrade) {
-        // Transaction 기반 원자적 업데이트
-        const result = await onTrade({
-          type: 'SELL',
-          stockId: selectedStock.id,
-          stockName: selectedStock.name,
-          quantity: qty,
-          pricePerShare: price,
-          round: gameState.currentRound,
-          maxInvestablePerStock
-        });
+      const result = await onTrade({
+        type: 'SELL',
+        stockId: selectedStock.id,
+        stockName: selectedStock.name,
+        quantity: qty,
+        pricePerShare: price,
+        round: gameState.currentRound,
+        maxInvestablePerStock
+      });
 
-        if (!result.success) {
-          alert(result.error || '거래 처리 중 오류가 발생했습니다.');
-          return;
-        }
-      } else {
-        // fallback: 기존 방식
-        const buyTransactions = (myTeam.transactionHistory || []).filter(
-          tx => tx.stockId === selectedStock.id && tx.type === 'BUY' && tx.round === gameState.currentRound
-        );
-        const totalBought = buyTransactions.reduce((sum, tx) => sum + tx.quantity, 0);
-        const totalBoughtAmount = buyTransactions.reduce((sum, tx) => sum + tx.totalAmount, 0);
-        const avgBuyPrice = totalBought > 0 ? totalBoughtAmount / totalBought : price;
-        const totalSellAmount = qty * price;
-        const costBasis = qty * avgBuyPrice;
-        const profitLoss = totalSellAmount - costBasis;
-        const profitLossRate = costBasis > 0 ? (profitLoss / costBasis) * 100 : 0;
-
-        const newTransaction: Transaction = {
-          id: `tx-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-          round: gameState.currentRound,
-          stockId: selectedStock.id,
-          stockName: selectedStock.name,
-          type: 'SELL',
-          quantity: qty,
-          pricePerShare: price,
-          totalAmount: totalSellAmount,
-          timestamp: Date.now(),
-          profitLoss,
-          profitLossRate
-        };
-        await setGameState(prev => ({
-          ...prev,
-          teams: prev.teams.map(t => t.id === myTeam.id ? {
-            ...t,
-            currentCash: t.currentCash + (qty * price),
-            portfolio: {
-              ...t.portfolio,
-              [selectedStock.id]: currentQty - qty
-            },
-            transactionHistory: [...(t.transactionHistory || []), newTransaction]
-          } : t)
-        }));
+      if (!result.success) {
+        alert(result.error || '거래 처리 중 오류가 발생했습니다.');
+        return;
       }
       setQty(0);
       setSelectedStock(null);
