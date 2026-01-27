@@ -2,7 +2,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap');
 
 /* ============================================
-   BRUTALIST DESIGN SYSTEM
+   BRUTALIST DESIGN SYSTEM - BLUE THEME
    ============================================ */
 
 /* 기본 스타일 */
@@ -33,13 +33,13 @@ body {
 }
 
 /* ============================================
-   배경 스타일 (기존 이미지 유지)
+   배경 스타일 (새 이미지 적용)
    ============================================ */
 
 .app-background {
   position: fixed;
   inset: 0;
-  background-image: url('https://images.unsplash.com/photo-1639762681485-074b7f938ba0?q=80&w=2832');
+  background-image: url('https://i.ibb.co/nqJDYrBC/1.jpg');
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
@@ -50,11 +50,11 @@ body {
   content: '';
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.85);
+  background: rgba(0, 0, 0, 0.75);
   z-index: -1;
 }
 
-/* 스크롤바 - 브루탈리즘 */
+/* 스크롤바 - 브루탈리즘 블루 */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -71,7 +71,7 @@ body {
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #ffff00;
+  background: #3b82f6;
 }
 
 /* ============================================
@@ -88,8 +88,8 @@ body {
 }
 
 .iso-card:hover {
-  box-shadow: 8px 8px 0 #ffff00 !important;
-  border-color: #ffff00 !important;
+  box-shadow: 8px 8px 0 #3b82f6 !important;
+  border-color: #3b82f6 !important;
   transform: translate(-2px, -2px) !important;
 }
 
@@ -110,7 +110,8 @@ body {
 }
 
 .btn-3d:hover {
-  background: #ffff00 !important;
+  background: #3b82f6 !important;
+  color: #fff !important;
   box-shadow: 6px 6px 0 #000 !important;
   transform: translate(-2px, -2px) !important;
 }
@@ -135,7 +136,8 @@ body {
 }
 
 .btn-micro:hover {
-  background: #ffff00;
+  background: #3b82f6;
+  color: #fff;
   transform: translate(-1px, -1px);
   box-shadow: 4px 4px 0 #000;
 }
@@ -151,8 +153,8 @@ body {
 
 .grid-bg {
   background-image:
-    linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+    linear-gradient(rgba(59, 130, 246, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(59, 130, 246, 0.05) 1px, transparent 1px);
   background-size: 30px 30px;
 }
 
@@ -165,8 +167,8 @@ body {
   position: fixed;
   inset: 0;
   background-image:
-    linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+    linear-gradient(rgba(59, 130, 246, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(59, 130, 246, 0.03) 1px, transparent 1px);
   background-size: 50px 50px;
   pointer-events: none;
   z-index: 0;
@@ -187,7 +189,7 @@ body {
 
 @keyframes pulse-glow {
   0%, 100% { box-shadow: 4px 4px 0 #fff; }
-  50% { box-shadow: 6px 6px 0 #ffff00; }
+  50% { box-shadow: 6px 6px 0 #3b82f6; }
 }
 
 .animate-pulse-glow {
@@ -230,8 +232,8 @@ body {
 }
 
 .stock-card:hover {
-  border-color: #fff !important;
-  box-shadow: 6px 6px 0 #fff !important;
+  border-color: #3b82f6 !important;
+  box-shadow: 6px 6px 0 #3b82f6 !important;
   background: #1a1a1a !important;
   transform: translate(-2px, -2px) !important;
 }
@@ -260,7 +262,8 @@ body {
 }
 
 .fullscreen-btn:hover {
-  background: #ffff00;
+  background: #3b82f6;
+  color: #fff;
   transform: translate(-2px, -2px);
   box-shadow: 6px 6px 0 #000;
 }
@@ -277,12 +280,12 @@ body {
 }
 
 /* ============================================
-   입력 필드 - 브루탈리즘
+   입력 필드 - 브루탈리즘 블루
    ============================================ */
 
 input, select, textarea {
   background: #000 !important;
-  border: 2px solid #fff !important;
+  border: 3px solid #fff !important;
   color: #fff !important;
   border-radius: 0 !important;
   font-family: 'Noto Sans KR', sans-serif !important;
@@ -291,8 +294,8 @@ input, select, textarea {
 
 input:focus, select:focus, textarea:focus {
   outline: none !important;
-  border-color: #ffff00 !important;
-  box-shadow: 4px 4px 0 #ffff00 !important;
+  border-color: #3b82f6 !important;
+  box-shadow: 4px 4px 0 #3b82f6 !important;
   transform: none !important;
 }
 
@@ -342,7 +345,7 @@ input[type="number"] {
 }
 
 *:focus-visible {
-  outline: 3px solid #ffff00;
+  outline: 3px solid #3b82f6;
   outline-offset: 2px;
 }
 
@@ -362,7 +365,7 @@ input[type="number"] {
 }
 
 .text-gradient-gold {
-  color: #ffff00;
+  color: #3b82f6;
   background: none;
   -webkit-text-fill-color: inherit;
 }
@@ -379,25 +382,8 @@ input[type="number"] {
 }
 
 /* ============================================
-   브루탈리즘 색상 오버라이드
+   브루탈리즘 색상 오버라이드 - 블루 테마
    ============================================ */
-
-/* 그라데이션 제거 및 단색 적용 */
-.bg-gradient-to-r,
-.bg-gradient-to-br,
-.bg-gradient-to-t {
-  background: #000 !important;
-}
-
-/* 중요 버튼 색상 */
-.from-indigo-600,
-.from-purple-600,
-.from-emerald-500,
-.from-rose-500,
-.from-amber-500 {
-  background: #fff !important;
-  color: #000 !important;
-}
 
 /* 테두리 둥글기 제거 */
 .rounded-xl,
@@ -415,19 +401,19 @@ input[type="number"] {
 }
 
 .timer-progress.warning {
-  background: #ffff00;
+  background: #f59e0b;
 }
 
 .timer-progress.danger {
-  background: #ff0000;
+  background: #ef4444;
 }
 
-/* 글로우 효과 제거 */
+/* 글로우 효과 - 블루 */
 .glow-primary,
 .glow-accent,
 .glow-warning,
 .glow-holographic {
-  box-shadow: 4px 4px 0 #fff;
+  box-shadow: 4px 4px 0 #3b82f6;
 }
 
 .glow-holographic::before {
@@ -438,4 +424,64 @@ input[type="number"] {
 .counter-value {
   font-family: 'Noto Sans KR', monospace;
   font-weight: 900;
+}
+
+/* ============================================
+   로고 및 아이콘 스타일 보존
+   ============================================ */
+
+/* Tailwind 그라데이션 보존 - 로고 영역 */
+.logo-gradient {
+  background: linear-gradient(135deg, #3b82f6, #8b5cf6, #ec4899) !important;
+}
+
+/* 로고 아이콘 컨테이너 */
+.logo-icon-container {
+  background: linear-gradient(135deg, #3b82f6, #6366f1, #8b5cf6) !important;
+  border: 3px solid #fff;
+  box-shadow: 4px 4px 0 #000;
+}
+
+/* 달러 배지 */
+.dollar-badge {
+  background: #10b981 !important;
+  border: 2px solid #000;
+}
+
+/* ============================================
+   버튼 색상 변형
+   ============================================ */
+
+/* 파란색 강조 버튼 */
+.btn-blue {
+  background: #3b82f6 !important;
+  color: #fff !important;
+  border: 3px solid #000 !important;
+  box-shadow: 4px 4px 0 #000 !important;
+}
+
+.btn-blue:hover {
+  background: #2563eb !important;
+  box-shadow: 6px 6px 0 #000 !important;
+  transform: translate(-2px, -2px) !important;
+}
+
+/* 위험 버튼 */
+.btn-danger {
+  background: #ef4444 !important;
+  color: #fff !important;
+}
+
+.btn-danger:hover {
+  background: #dc2626 !important;
+}
+
+/* 성공 버튼 */
+.btn-success {
+  background: #10b981 !important;
+  color: #fff !important;
+}
+
+.btn-success:hover {
+  background: #059669 !important;
 }
