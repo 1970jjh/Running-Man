@@ -87,6 +87,7 @@ const normalizeGameState = (gameState: any): GameState => {
     ...gameState,
     teams: toArray(gameState.teams).map((team: any) => ({
       ...team,
+      teamName: team.teamName || `Team ${team.number}`,
       members: toArray(team.members),
       unlockedCards: toArray(team.unlockedCards),
       roundResults: toArray(team.roundResults),
@@ -121,6 +122,7 @@ export const createDefaultGameState = (roomName: string, totalTeams: number, max
     teams.push({
       id: `team-${i}`,
       number: i,
+      teamName: `Team ${i}`,
       leaderName: '',
       members: [],
       currentCash: INITIAL_SEED_MONEY,

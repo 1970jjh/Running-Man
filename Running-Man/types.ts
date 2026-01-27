@@ -56,6 +56,7 @@ export interface Transaction {
 export interface Team {
   id: string;
   number: number;
+  teamName: string; // 관리자가 수정 가능한 팀 이름
   leaderName: string;
   members: string[];
   currentCash: number;

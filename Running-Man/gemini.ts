@@ -20,6 +20,7 @@ const STOCK_ID_TO_INDEX: { [key: string]: number } = {
 
 interface AnalysisInput {
   teamNumber: number;
+  teamName: string;
   unlockedCards: string[];
   roundResults: {
     round: number;
@@ -255,7 +256,7 @@ const buildAnalysisPrompt = (
   investmentAnalysis: { withInfoCard: string[]; withoutInfoCard: string[]; details: { stockId: string; hasCard: boolean; cardRounds: number[]; buyRound: number }[] },
   cardImageAnalysis: { [cardId: string]: string }
 ): string => {
-  const { teamNumber, unlockedCards, roundResults, finalCash, stockPrices, maxRounds } = input;
+  const { teamNumber, teamName, unlockedCards, roundResults, finalCash, stockPrices, maxRounds } = input;
 
   const lastResult = roundResults[roundResults.length - 1];
   const cumulativeRate = lastResult?.cumulativeProfitRate || 0;
@@ -284,7 +285,7 @@ ${Object.entries(cardImageAnalysis).map(([cardId, analysis]) => {
 당신은 모의투자 게임의 투자 전략 분석가입니다. 아래 팀의 투자 결과를 분석하고 피드백을 제공해주세요.
 특히, 정보카드를 보유하고 투자한 종목과 협상을 통해 정보를 얻어 투자한 종목을 구분하여 분석해주세요.
 
-## Team ${teamNumber} 투자 분석 요청
+## ${teamName} (Team ${teamNumber}) 투자 분석 요청
 
 ### 게임 설정
 - 총 라운드: ${maxRounds}R
@@ -368,7 +369,7 @@ const generateSampleAnalysis = (
   input: AnalysisInput,
   investmentAnalysis: { withInfoCard: string[]; withoutInfoCard: string[]; details: { stockId: string; hasCard: boolean; cardRounds: number[]; buyRound: number }[] }
 ): AnalysisReport => {
-  const { teamNumber, unlockedCards, roundResults } = input;
+  const { teamName, unlockedCards, roundResults } = input;
   const lastResult = roundResults[roundResults.length - 1];
   const cumulativeRate = lastResult?.cumulativeProfitRate || 0;
   const cardCount = unlockedCards.length;
@@ -448,7 +449,7 @@ const generateSampleAnalysis = (
   }
 
   return {
-    summary: `Team ${teamNumber}은(는) 총 ${roundResults.length}라운드 동안 ${cardCount}개의 정보 카드를 활용하여 ${cumulativeRate >= 0 ? '+' : ''}${cumulativeRate.toFixed(1)}%의 누적 수익률을 달성했습니다. ${investmentAnalysis.withInfoCard.length}개 종목은 정보카드 기반, ${investmentAnalysis.withoutInfoCard.length}개 종목은 협상을 통해 투자했습니다.`,
+    summary: `${teamName}은(는) 총 ${roundResults.length}라운드 동안 ${cardCount}개의 정보 카드를 활용하여 ${cumulativeRate >= 0 ? '+' : ''}${cumulativeRate.toFixed(1)}%의 누적 수익률을 달성했습니다. ${investmentAnalysis.withInfoCard.length}개 종목은 정보카드 기반, ${investmentAnalysis.withoutInfoCard.length}개 종목은 협상을 통해 투자했습니다.`,
     strengths,
     weaknesses,
     recommendations,

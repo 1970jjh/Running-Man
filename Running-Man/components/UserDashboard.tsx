@@ -86,7 +86,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
                 {myTeam.number}
               </div>
               <div className="min-w-0">
-                <h2 className="text-base md:text-xl font-black text-white truncate">Team {myTeam.number}</h2>
+                <h2 className="text-base md:text-xl font-black text-white truncate">{myTeam.teamName}</h2>
                 <p className="text-[10px] md:text-xs text-slate-400 truncate">{myTeam.leaderName}</p>
               </div>
             </div>
