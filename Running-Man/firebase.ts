@@ -593,24 +593,11 @@ export const executeTeamTrade = async (trade: TradeRequest): Promise<TradeResult
           return; // abort transaction
         }
 
-        // 매수 평균가 계산
-        const historyArr = Array.isArray(currentTeam.transactionHistory)
-          ? currentTeam.transactionHistory
-          : currentTeam.transactionHistory
-            ? Object.values(currentTeam.transactionHistory) as Transaction[]
-            : [];
-
-        const buyTxs = historyArr.filter(
-          (tx: Transaction) => tx.stockId === trade.stockId && tx.type === 'BUY' && tx.round === trade.round
-        );
-        const totalBought = buyTxs.reduce((sum: number, tx: Transaction) => sum + tx.quantity, 0);
-        const totalBoughtAmount = buyTxs.reduce((sum: number, tx: Transaction) => sum + tx.totalAmount, 0);
-        const avgBuyPrice = totalBought > 0 ? totalBoughtAmount / totalBought : trade.pricePerShare;
-
+        // 수익률 = 매도가 기준 (같은 라운드 내 매수/매도는 동일 가격이므로 수익 0)
         const totalSellAmount = trade.quantity * trade.pricePerShare;
-        const costBasis = trade.quantity * avgBuyPrice;
+        const costBasis = trade.quantity * trade.pricePerShare; // 같은 라운드 동일 가격
         const profitLoss = totalSellAmount - costBasis;
-        const profitLossRate = costBasis > 0 ? (profitLoss / costBasis) * 100 : 0;
+        const profitLossRate = 0; // 같은 라운드 내 매도 시 변동률 없음
 
         const newPortfolio = { ...(currentTeam.portfolio || {}) };
         newPortfolio[trade.stockId] = currentQty - trade.quantity;

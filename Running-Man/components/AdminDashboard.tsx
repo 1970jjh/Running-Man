@@ -374,16 +374,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
             const sellAmount = qty * nextRoundPrice;
             portfolioValueAtNextRound += sellAmount;
 
-            // 매수 평균가 계산
-            const buyTxs = (team.transactionHistory || []).filter(
-              tx => tx.stockId === stockId && tx.type === 'BUY'
-            );
-            const totalBought = buyTxs.reduce((sum, tx) => sum + tx.quantity, 0);
-            const totalBoughtAmount = buyTxs.reduce((sum, tx) => sum + tx.totalAmount, 0);
-            const avgBuyPrice = totalBought > 0 ? totalBoughtAmount / totalBought : nextRoundPrice;
-            const costBasis = qty * avgBuyPrice;
+            // 수익률 = 라운드 주가 변동률 (매수가 → 매도가)
+            const buyPrice = stock.prices[currentRound - 1] || 0;
+            const costBasis = qty * buyPrice;
             const profitLoss = sellAmount - costBasis;
-            const profitLossRate = costBasis > 0 ? (profitLoss / costBasis) * 100 : 0;
+            const profitLossRate = buyPrice > 0 ? ((nextRoundPrice - buyPrice) / buyPrice) * 100 : 0;
 
             autoSellTransactions.push({
               id: `tx-auto-${Date.now()}-${stockId}`,
