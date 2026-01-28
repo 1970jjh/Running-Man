@@ -461,27 +461,27 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
                           {/* 거래 정보 */}
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2">
+                              <span className="text-[10px] text-slate-500 font-bold">R{tx.round}</span>
                               <span className={`text-xs font-bold px-2 py-0.5 rounded ${
                                 tx.type === 'BUY' ? 'bg-rose-500/20 text-rose-300' : 'bg-blue-500/20 text-blue-300'
                               }`}>
                                 {tx.type === 'BUY' ? '매수' : '매도'}
                               </span>
                               <span className="font-bold text-white text-sm">{tx.stockName}</span>
-                              <span className="text-xs text-slate-500">R{tx.round}</span>
                             </div>
                             <p className="text-xs text-slate-400 mt-0.5">
-                              {tx.quantity}주 × {tx.pricePerShare.toLocaleString()}원
+                              {tx.quantity}주 × {Math.round(tx.pricePerShare).toLocaleString()}원
                             </p>
                           </div>
 
                           {/* 거래 금액 & 손익 */}
                           <div className="text-right flex-shrink-0">
                             <p className={`font-bold text-sm ${tx.type === 'BUY' ? 'text-rose-400' : 'text-blue-400'}`}>
-                              {tx.type === 'BUY' ? '-' : '+'}{tx.totalAmount.toLocaleString()}원
+                              {tx.type === 'BUY' ? '-' : '+'}{Math.round(tx.totalAmount).toLocaleString()}원
                             </p>
                             {tx.type === 'SELL' && tx.profitLoss !== undefined && (
                               <p className={`text-xs font-bold ${tx.profitLoss >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                                {tx.profitLoss >= 0 ? '+' : ''}{tx.profitLoss.toLocaleString()}원
+                                {tx.profitLoss >= 0 ? '+' : ''}{Math.round(tx.profitLoss).toLocaleString()}원
                                 <span className="ml-1">({tx.profitLossRate?.toFixed(1)}%)</span>
                               </p>
                             )}

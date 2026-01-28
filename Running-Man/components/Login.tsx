@@ -182,7 +182,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, onAdminAccess }) => {
               <img
                 src="https://i.ibb.co/Ld5j0Mg6/JJ-CREATIVE-CI-2.png"
                 alt="JJ CREATIVE 교육연구소"
-                className="h-14 opacity-80"
+                className="h-10 opacity-80"
               />
             </div>
           </div>
