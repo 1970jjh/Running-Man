@@ -3,6 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { GameState, Team, Stock, GameStep } from '../types';
 import { getMaxInvestmentRatio } from '../constants';
 import { TradeRequest } from '../firebase';
+import { playTradeSound, resumeAudioContext } from '../utils/sounds';
 
 interface InvestmentModuleProps {
   gameState: GameState;
@@ -81,6 +82,9 @@ const InvestmentModule: React.FC<InvestmentModuleProps> = ({ gameState, myTeam, 
         alert(result.error || '거래 처리 중 오류가 발생했습니다.');
         return;
       }
+      // 매수 성공 시 체결음 재생
+      await resumeAudioContext();
+      playTradeSound();
       setQty(0);
       setSelectedStock(null);
     } catch (error) {
@@ -120,6 +124,9 @@ const InvestmentModule: React.FC<InvestmentModuleProps> = ({ gameState, myTeam, 
         alert(result.error || '거래 처리 중 오류가 발생했습니다.');
         return;
       }
+      // 매도 성공 시 체결음 재생
+      await resumeAudioContext();
+      playTradeSound();
       setQty(0);
       setSelectedStock(null);
     } catch (error) {

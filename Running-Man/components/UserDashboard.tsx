@@ -4,6 +4,7 @@ import { GameState, Team, GameStatus, GameStep } from '../types';
 import InvestmentModule from './InvestmentModule';
 import { INFO_CARDS, STEP_NAMES, INITIAL_SEED_MONEY } from '../constants';
 import { TradeRequest } from '../firebase';
+import { playStepChangeSound, playTimerEndSound, resumeAudioContext } from '../utils/sounds';
 
 interface UserDashboardProps {
   gameState: GameState;
@@ -27,6 +28,8 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
   useEffect(() => {
     if (gameState.currentStep === GameStep.INVESTMENT && gameState.isInvestmentLocked && !prevLockedRef.current) {
       setShowTradeClosedPopup(true);
+      // 매매시간 종료 알람 사운드 재생
+      resumeAudioContext().then(() => playTimerEndSound());
     }
     if (!gameState.isInvestmentLocked) {
       setShowTradeClosedPopup(false);
@@ -39,6 +42,8 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
     if (prevStepRef.current !== null && prevStepRef.current !== gameState.currentStep) {
       setShowStepNotification(true);
       setShowTradeClosedPopup(false); // step 변경 시 매매마감 팝업 닫기
+      // 스텝 전환 알림 사운드 재생
+      resumeAudioContext().then(() => playStepChangeSound());
     }
     prevStepRef.current = gameState.currentStep;
   }, [gameState.currentStep]);

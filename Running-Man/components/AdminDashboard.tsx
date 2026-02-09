@@ -233,7 +233,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     const rounds = [GameStatus.ROUND_1, GameStatus.ROUND_2, GameStatus.ROUND_3, GameStatus.ROUND_4, GameStatus.FINISHED];
     const currentIdx = rounds.indexOf(gameState.currentStatus);
 
-    if (currentIdx >= gameState.maxRounds) {
+    // 현재 라운드가 마지막 라운드이면 게임 종료 (maxRounds가 3이면 ROUND_3(인덱스 2)에서 종료)
+    if (currentIdx >= gameState.maxRounds - 1) {
       await updateGameState((current) => ({ ...current, currentStatus: GameStatus.FINISHED }));
       return;
     }
@@ -454,7 +455,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     const rounds = [GameStatus.ROUND_1, GameStatus.ROUND_2, GameStatus.ROUND_3, GameStatus.ROUND_4, GameStatus.FINISHED];
     const currentIdx = rounds.indexOf(gameState.currentStatus);
 
-    if (currentIdx >= gameState.maxRounds) {
+    // 현재 라운드가 마지막 라운드이면 게임 종료 (maxRounds가 3이면 ROUND_3(인덱스 2)에서 종료)
+    if (currentIdx >= gameState.maxRounds - 1) {
       await updateGameState((current) => ({ ...current, currentStatus: GameStatus.FINISHED }));
       setShowResultModal(false);
       return;
