@@ -516,7 +516,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
                     {/* 시드머니 기준 안내 */}
                     <div className="mb-4 p-2 rounded-lg bg-indigo-500/20 border border-indigo-500/30">
                       <p className="text-indigo-300 text-xs font-medium text-center">
-                        💰 시드머니: <span className="font-bold">1,000만원</span> 기준
+                        💰 시드머니: <span className="font-bold">1,000만원</span> 기준 누적수익률
                       </p>
                     </div>
 
