@@ -762,6 +762,30 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
       return bRate - aRate;
     });
 
+    // AI 분석 함수
+    const handleFinalAnalyze = async (team: Team) => {
+      setAnalyzingTeamId(team.id);
+      const stockPrices: { [stockId: string]: number[] } = {};
+      gameState.stocks.forEach(s => {
+        stockPrices[s.id] = s.prices;
+      });
+
+      const report = await analyzeTeamPerformance({
+        teamNumber: team.number,
+        teamName: team.teamName,
+        unlockedCards: team.unlockedCards,
+        roundResults: team.roundResults,
+        finalCash: team.currentCash,
+        portfolio: team.portfolio,
+        stockPrices,
+        maxRounds: gameState.maxRounds,
+        transactionHistory: team.transactionHistory || []
+      });
+
+      setAnalysisReports(prev => ({ ...prev, [team.id]: report }));
+      setAnalyzingTeamId(null);
+    };
+
     return (
       <div className="min-h-screen p-6 iso-grid relative z-10">
         <div className="max-w-3xl mx-auto">
@@ -784,31 +808,65 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
             <div className="space-y-4">
               {sortedTeams.map((team, idx) => {
                 const finalResult = team.roundResults[team.roundResults.length - 1];
+                const hasReport = !!analysisReports[team.id];
+                const isAnalyzing = analyzingTeamId === team.id;
+
                 return (
                   <div
                     key={team.id}
-                    className={`p-5 rounded-2xl flex items-center gap-4 ${
+                    className={`p-5 rounded-2xl ${
                       idx === 0 ? 'bg-gradient-to-r from-amber-500/20 to-yellow-500/20 border-2 border-amber-500/50' :
                       idx === 1 ? 'bg-gradient-to-r from-slate-400/20 to-gray-400/20 border border-slate-400/30' :
                       idx === 2 ? 'bg-gradient-to-r from-orange-600/20 to-amber-700/20 border border-orange-600/30' :
                       'bg-slate-700/30 border border-slate-600/30'
                     }`}
                   >
-                    <span className="text-3xl font-black text-slate-400 w-12 font-display">
-                      {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `${idx + 1}`}
-                    </span>
-                    <div className="flex-1">
-                      <p className="font-bold text-white">{team.teamName}</p>
-                      <p className="text-sm text-slate-400">{team.leaderName || '참여자 없음'}</p>
+                    <div className="flex items-center gap-4">
+                      <span className="text-3xl font-black text-slate-400 w-12 font-display">
+                        {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `${idx + 1}`}
+                      </span>
+                      <div className="flex-1">
+                        <p className="font-bold text-white">{team.teamName}</p>
+                        <p className="text-sm text-slate-400">{team.leaderName || '참여자 없음'}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className={`text-2xl font-black font-display ${
+                          (finalResult?.cumulativeProfitRate || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'
+                        }`}>
+                          {(finalResult?.cumulativeProfitRate || 0) >= 0 ? '+' : ''}
+                          {(finalResult?.cumulativeProfitRate || 0).toFixed(1)}%
+                        </p>
+                        <p className="text-sm text-slate-500">누적 수익률</p>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <p className={`text-2xl font-black font-display ${
-                        (finalResult?.cumulativeProfitRate || 0) >= 0 ? 'text-emerald-400' : 'text-rose-400'
-                      }`}>
-                        {(finalResult?.cumulativeProfitRate || 0) >= 0 ? '+' : ''}
-                        {(finalResult?.cumulativeProfitRate || 0).toFixed(1)}%
-                      </p>
-                      <p className="text-sm text-slate-500">누적 수익률</p>
+
+                    {/* AI 투자 성과 분석 버튼 */}
+                    <div className="mt-4 flex justify-end">
+                      {hasReport ? (
+                        <button
+                          onClick={() => setShowAnalysisModal(team.id)}
+                          className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-sm font-bold hover:from-emerald-600 hover:to-teal-600 transition-all shadow-lg shadow-emerald-500/30"
+                        >
+                          📊 AI 투자 성과 분석 보기
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleFinalAnalyze(team)}
+                          disabled={isAnalyzing}
+                          className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
+                            isAnalyzing
+                              ? 'bg-slate-600/50 text-slate-400 cursor-wait'
+                              : 'bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600 shadow-lg shadow-purple-500/30'
+                          }`}
+                        >
+                          {isAnalyzing ? (
+                            <span className="flex items-center gap-2">
+                              <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                              AI 분석중...
+                            </span>
+                          ) : '🤖 AI 투자 성과 분석'}
+                        </button>
+                      )}
                     </div>
                   </div>
                 );
@@ -816,6 +874,122 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
             </div>
           </div>
         </div>
+
+        {/* AI 분석 리포트 모달 */}
+        {showAnalysisModal && analysisReports[showAnalysisModal] && (
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+            <div className="iso-card bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-auto border border-indigo-500/50">
+              <div className="p-6">
+                {(() => {
+                  const report = analysisReports[showAnalysisModal];
+                  const team = gameState?.teams.find(t => t.id === showAnalysisModal);
+                  return (
+                    <>
+                      <div className="flex justify-between items-center mb-6">
+                        <h2 className="text-xl font-black text-white flex items-center gap-2">
+                          📊 {team?.teamName} AI 투자 성과 분석
+                        </h2>
+                        <button
+                          onClick={() => setShowAnalysisModal(null)}
+                          className="p-2 rounded-lg bg-slate-700/50 text-slate-400 hover:text-white transition-colors"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/>
+                          </svg>
+                        </button>
+                      </div>
+
+                      {/* 점수 */}
+                      <div className="mb-6 p-4 rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-indigo-500/30 text-center">
+                        <p className="text-xs text-indigo-300 uppercase font-bold mb-2">Overall Score</p>
+                        <p className="text-5xl font-black text-white">{report.overallScore}</p>
+                        <p className="text-xs text-slate-400 mt-1">/ 100점</p>
+                      </div>
+
+                      {/* 요약 */}
+                      <div className="mb-4 p-4 rounded-xl bg-slate-700/30">
+                        <h3 className="text-sm font-bold text-white mb-2">📝 요약</h3>
+                        <p className="text-sm text-slate-300">{report.summary}</p>
+                      </div>
+
+                      {/* 강점 */}
+                      {report.strengths.length > 0 && (
+                        <div className="mb-4 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
+                          <h3 className="text-sm font-bold text-emerald-300 mb-2">✅ 강점</h3>
+                          <ul className="space-y-1">
+                            {report.strengths.map((s, i) => (
+                              <li key={i} className="text-sm text-slate-300 flex items-start gap-2">
+                                <span className="text-emerald-400">•</span>
+                                {s}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {/* 개선점 */}
+                      {report.weaknesses.length > 0 && (
+                        <div className="mb-4 p-4 rounded-xl bg-rose-500/10 border border-rose-500/30">
+                          <h3 className="text-sm font-bold text-rose-300 mb-2">⚠️ 개선점</h3>
+                          <ul className="space-y-1">
+                            {report.weaknesses.map((w, i) => (
+                              <li key={i} className="text-sm text-slate-300 flex items-start gap-2">
+                                <span className="text-rose-400">•</span>
+                                {w}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {/* 추천 */}
+                      {report.recommendations.length > 0 && (
+                        <div className="mb-4 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30">
+                          <h3 className="text-sm font-bold text-amber-300 mb-2">💡 추천</h3>
+                          <ul className="space-y-1">
+                            {report.recommendations.map((r, i) => (
+                              <li key={i} className="text-sm text-slate-300 flex items-start gap-2">
+                                <span className="text-amber-400">•</span>
+                                {r}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {/* 정보카드 기반 투자 분석 */}
+                      {report.infoCardAnalysis && report.infoCardAnalysis.length > 0 && (
+                        <div className="mb-4 p-4 rounded-xl bg-gradient-to-br from-purple-500/10 to-pink-500/10 border border-purple-500/30">
+                          <h3 className="text-sm font-bold text-purple-300 mb-2">🔍 정보카드 vs 협상 투자 분석</h3>
+                          <ul className="space-y-2">
+                            {report.infoCardAnalysis.map((analysis, i) => (
+                              <li key={i} className="text-sm text-slate-300 flex items-start gap-2">
+                                <span className="text-purple-400">•</span>
+                                {analysis}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {/* 분석 시간 */}
+                      <p className="text-xs text-slate-500 text-center mt-4">
+                        분석 시간: {new Date(report.timestamp).toLocaleString('ko-KR')}
+                      </p>
+
+                      <button
+                        onClick={() => setShowAnalysisModal(null)}
+                        className="btn-3d w-full mt-6 bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-3 rounded-xl font-bold"
+                      >
+                        닫기
+                      </button>
+                    </>
+                  );
+                })()}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -1556,32 +1730,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                                     )}
                                   </div>
                                 </div>
-                                {/* AI 분석 버튼 */}
-                                {hasReport ? (
-                                  <button
-                                    onClick={() => setShowAnalysisModal(team.id)}
-                                    className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-sm font-bold hover:from-emerald-600 hover:to-teal-600 transition-all shadow-lg shadow-emerald-500/30"
-                                  >
-                                    📊 AI 리포트 보기
-                                  </button>
-                                ) : (
-                                  <button
-                                    onClick={handleAnalyze}
-                                    disabled={isAnalyzing}
-                                    className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
-                                      isAnalyzing
-                                        ? 'bg-slate-600/50 text-slate-400 cursor-wait'
-                                        : 'bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600 shadow-lg shadow-purple-500/30 animate-pulse'
-                                    }`}
-                                  >
-                                    {isAnalyzing ? (
-                                      <span className="flex items-center gap-2">
-                                        <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                                        AI 분석중...
-                                      </span>
-                                    ) : '🤖 AI 분석'}
-                                  </button>
-                                )}
                               </div>
                             </div>
                           );
