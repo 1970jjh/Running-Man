@@ -382,6 +382,20 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
+  // 금액 포맷 (한국식: #억#,###만원 또는 #,###만원)
+  const formatKoreanMoney = (amount: number): string => {
+    const uk = Math.floor(amount / 100000000); // 억
+    const man = Math.floor((amount % 100000000) / 10000); // 만
+
+    if (uk > 0) {
+      if (man > 0) {
+        return `${uk}억${man.toLocaleString()}만원`;
+      }
+      return `${uk}억원`;
+    }
+    return `${man.toLocaleString()}만원`;
+  };
+
   // 기존 타이머 관리
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -1990,27 +2004,60 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                           </th>
                         </>
                       )}
-                      {gameState.teams.map((team, teamIdx) => (
-                        <th key={team.id} className="bg-slate-800 px-4 py-4 text-center border-b-4 border-slate-500 min-w-[140px]">
-                          <div className="flex flex-col items-center gap-2">
-                            <span className={`text-2xl font-black ${teamColors[teamIdx % teamColors.length].replace('bg-', 'text-').replace('-500', '-400')}`}>
-                              {team.teamName}
-                            </span>
-                            {!revealedTeams.has(team.id) ? (
-                              <button
-                                onClick={() => setRevealedTeams(prev => new Set([...prev, team.id]))}
-                                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-bold text-lg transition-all animate-pulse"
-                              >
-                                👁️ 결과보기
-                              </button>
-                            ) : (
-                              <span className="px-4 py-2 bg-emerald-600/50 text-emerald-300 rounded-lg font-bold text-lg">
-                                ✓ 공개됨
+                      {gameState.teams.map((team, teamIdx) => {
+                        // 팀 총자산 계산 (공개된 경우에만 표시)
+                        const isTeamRevealed = revealedTeams.has(team.id);
+                        let teamTotalAsset = 0;
+                        let teamProfitRate = 0;
+
+                        if (isTeamRevealed && selectedTableRound === gameState.currentRound) {
+                          let portfolioValue = 0;
+                          Object.entries(team.portfolio || {}).forEach(([stockId, qty]) => {
+                            const stock = gameState.stocks.find(s => s.id === stockId);
+                            if (stock && typeof qty === 'number') {
+                              const buyPrice = stock.prices[selectedTableRound - 1];
+                              const nextPrice = stock.prices[selectedTableRound] || buyPrice;
+                              portfolioValue += qty * (isPriceRevealed ? nextPrice : buyPrice);
+                            }
+                          });
+                          teamTotalAsset = team.currentCash + portfolioValue;
+                          teamProfitRate = ((teamTotalAsset - INITIAL_SEED_MONEY) / INITIAL_SEED_MONEY) * 100;
+                        }
+
+                        return (
+                          <th key={team.id} className="bg-slate-800 px-4 py-4 text-center border-b-4 border-slate-500 min-w-[160px]">
+                            <div className="flex flex-col items-center gap-2">
+                              <span className={`text-2xl font-black ${teamColors[teamIdx % teamColors.length].replace('bg-', 'text-').replace('-500', '-400')}`}>
+                                {team.teamName}
                               </span>
-                            )}
-                          </div>
-                        </th>
-                      ))}
+                              {!isTeamRevealed ? (
+                                <button
+                                  onClick={() => setRevealedTeams(prev => new Set([...prev, team.id]))}
+                                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-bold text-lg transition-all animate-pulse"
+                                >
+                                  👁️ 결과보기
+                                </button>
+                              ) : (
+                                <div className="flex flex-col items-center gap-1">
+                                  <span className="px-3 py-1 bg-emerald-600/50 text-emerald-300 rounded-lg font-bold text-base">
+                                    ✓ 공개됨
+                                  </span>
+                                  {selectedTableRound === gameState.currentRound && (
+                                    <div className="mt-1 text-center">
+                                      <div className="text-amber-400 font-black text-xl">
+                                        {formatKoreanMoney(teamTotalAsset)}
+                                      </div>
+                                      <div className={`text-base font-bold ${teamProfitRate >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                        {teamProfitRate >= 0 ? '+' : ''}{teamProfitRate.toFixed(1)}%
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          </th>
+                        );
+                      })}
                     </tr>
                   </thead>
                   <tbody>
@@ -2025,9 +2072,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                       // 해당 라운드에서 투자가 있는지
                       const hasAnyInvestment = gameState.teams.some(team => {
                         if (selectedTableRound === gameState.currentRound) {
-                          return (team.portfolio[stock.id] || 0) > 0;
+                          const portfolio = team.portfolio || {};
+                          const qty = (typeof portfolio === 'object' && portfolio[stock.id]) ? Number(portfolio[stock.id]) : 0;
+                          return qty > 0;
                         }
-                        return team.transactionHistory?.some(tx =>
+                        const txHistory = team.transactionHistory || [];
+                        return txHistory.some(tx =>
                           tx.round === selectedTableRound && tx.stockId === stock.id && tx.type === 'BUY'
                         );
                       });
@@ -2064,14 +2114,18 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                           {gameState.teams.map(team => {
                             const isTeamRevealed = revealedTeams.has(team.id);
 
-                            // 수량 계산
+                            // 수량 계산 - portfolio 객체 안전하게 접근
                             let qty = 0;
                             if (selectedTableRound === gameState.currentRound) {
-                              qty = team.portfolio[stock.id] || 0;
+                              // portfolio가 객체인지 확인하고 안전하게 접근
+                              const portfolio = team.portfolio || {};
+                              qty = (typeof portfolio === 'object' && portfolio[stock.id]) ? Number(portfolio[stock.id]) : 0;
                             } else {
-                              qty = team.transactionHistory?.filter(tx =>
-                                tx.round === selectedTableRound && tx.stockId === stock.id && tx.type === 'BUY'
-                              ).reduce((sum, tx) => sum + tx.quantity, 0) || 0;
+                              // 이전 라운드: transactionHistory에서 계산
+                              const txHistory = team.transactionHistory || [];
+                              qty = txHistory
+                                .filter(tx => tx.round === selectedTableRound && tx.stockId === stock.id && tx.type === 'BUY')
+                                .reduce((sum, tx) => sum + tx.quantity, 0);
                             }
 
                             // 가치 계산 (주가 공개 여부에 따라)
@@ -2132,18 +2186,20 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                         let buyValue = 0; // 매수금액
 
                         if (selectedTableRound === gameState.currentRound) {
-                          Object.entries(team.portfolio).forEach(([stockId, qty]) => {
+                          const portfolio = team.portfolio || {};
+                          Object.entries(portfolio).forEach(([stockId, qty]) => {
                             const stock = gameState.stocks.find(s => s.id === stockId);
-                            if (stock) {
+                            const numQty = typeof qty === 'number' ? qty : 0;
+                            if (stock && numQty > 0) {
                               const buyPrice = stock.prices[selectedTableRound - 1];
                               const nextPrice = stock.prices[selectedTableRound] || buyPrice;
-                              buyValue += qty * buyPrice;
-                              totalValue += qty * (isPriceRevealed ? nextPrice : buyPrice);
-                              totalShares += qty;
+                              buyValue += numQty * buyPrice;
+                              totalValue += numQty * (isPriceRevealed ? nextPrice : buyPrice);
+                              totalShares += numQty;
                             }
                           });
                         } else {
-                          const roundTxs = team.transactionHistory?.filter(tx => tx.round === selectedTableRound && tx.type === 'BUY') || [];
+                          const roundTxs = (team.transactionHistory || []).filter(tx => tx.round === selectedTableRound && tx.type === 'BUY');
                           roundTxs.forEach(tx => {
                             const stock = gameState.stocks.find(s => s.id === tx.stockId);
                             if (stock) {
@@ -2166,7 +2222,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                             ) : (
                               <div>
                                 <span className="text-amber-400 font-black text-2xl">{totalShares}주</span>
-                                <p className="text-xl text-white font-black">{(totalValue / 10000).toFixed(0)}만원</p>
+                                <p className="text-xl text-white font-black">{formatKoreanMoney(totalValue)}</p>
                                 {isPriceRevealed && totalShares > 0 && (
                                   <p className={`text-lg font-black ${profitRate >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                                     {profitRate >= 0 ? '+' : ''}{profitRate.toFixed(1)}%
@@ -2191,7 +2247,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                               {!isTeamRevealed ? (
                                 <span className="text-slate-600 font-black text-3xl">?</span>
                               ) : (
-                                <span className="text-emerald-400 font-black text-2xl">{(team.currentCash / 10000).toFixed(0)}만</span>
+                                <span className="text-emerald-400 font-black text-2xl">{formatKoreanMoney(team.currentCash)}</span>
                               )}
                             </td>
                           );
@@ -2207,15 +2263,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                         {gameState.teams.map(team => {
                           const isTeamRevealed = revealedTeams.has(team.id);
                           let portfolioValue = 0;
-                          let buyValue = 0;
 
-                          Object.entries(team.portfolio).forEach(([stockId, qty]) => {
+                          const portfolio = team.portfolio || {};
+                          Object.entries(portfolio).forEach(([stockId, qty]) => {
                             const stock = gameState.stocks.find(s => s.id === stockId);
-                            if (stock) {
+                            const numQty = typeof qty === 'number' ? qty : 0;
+                            if (stock && numQty > 0) {
                               const buyPrice = stock.prices[selectedTableRound - 1];
                               const nextPrice = stock.prices[selectedTableRound] || buyPrice;
-                              buyValue += qty * buyPrice;
-                              portfolioValue += qty * (isPriceRevealed ? nextPrice : buyPrice);
+                              portfolioValue += numQty * (isPriceRevealed ? nextPrice : buyPrice);
                             }
                           });
 
@@ -2228,7 +2284,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                                 <span className="text-slate-600 font-black text-3xl">?</span>
                               ) : (
                                 <div>
-                                  <span className="text-amber-400 font-black text-3xl">{(totalAsset / 10000).toFixed(0)}만</span>
+                                  <span className="text-amber-400 font-black text-3xl">{formatKoreanMoney(totalAsset)}</span>
                                   <p className={`text-xl font-black ${profitRate >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                                     {profitRate >= 0 ? '+' : ''}{profitRate.toFixed(1)}%
                                   </p>
@@ -2252,14 +2308,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                       // 공개된 팀들의 총자산 계산
                       const teamAssets = gameState.teams
                         .filter(team => revealedTeams.has(team.id))
-                        .map((team, idx) => {
+                        .map((team) => {
                           let portfolioValue = 0;
-                          Object.entries(team.portfolio).forEach(([stockId, qty]) => {
+                          const portfolio = team.portfolio || {};
+                          Object.entries(portfolio).forEach(([stockId, qty]) => {
                             const stock = gameState.stocks.find(s => s.id === stockId);
-                            if (stock) {
+                            const numQty = typeof qty === 'number' ? qty : 0;
+                            if (stock && numQty > 0) {
                               const buyPrice = stock.prices[selectedTableRound - 1];
                               const nextPrice = stock.prices[selectedTableRound] || buyPrice;
-                              portfolioValue += qty * (isPriceRevealed ? nextPrice : buyPrice);
+                              portfolioValue += numQty * (isPriceRevealed ? nextPrice : buyPrice);
                             }
                           });
                           return {
@@ -2286,7 +2344,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                                 style={{ width: `${barWidth}%` }}
                               >
                                 <span className="text-white font-black text-lg drop-shadow-lg">
-                                  {(totalAsset / 10000).toFixed(0)}만
+                                  {formatKoreanMoney(totalAsset)}
                                 </span>
                               </div>
                               {/* 초기 자본금 라인 */}
