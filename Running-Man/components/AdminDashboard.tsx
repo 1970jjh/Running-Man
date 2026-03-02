@@ -37,7 +37,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   const [setupPassword, setSetupPassword] = useState(ADMIN_PASSWORD);
 
   // 게임 관리
-  const [timerInput, setTimerInput] = useState(300);
+  const [timerInput, setTimerInput] = useState(5); // 분 단위 (기본 5분)
   const [showResultModal, setShowResultModal] = useState(false);
   const [resultStep, setResultStep] = useState<'stocks' | 'teams'>('stocks');
 
@@ -404,10 +404,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   const startInvestment = async () => {
     if (!gameState) return;
 
+    const timerSeconds = timerInput * 60; // 분 → 초 변환
     await updateGameState((current) => ({
       ...current,
-      timerSeconds: timerInput,
-      timerMaxSeconds: timerInput,
+      timerSeconds: timerSeconds,
+      timerMaxSeconds: timerSeconds,
       isTimerRunning: true,
       isInvestmentLocked: false
     }));
@@ -1323,11 +1324,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
             <div className="space-y-4">
               {/* 타이머 설정 */}
               <div>
-                <label className="block text-xs font-bold text-slate-400 mb-2 uppercase">타이머 (초)</label>
+                <label className="block text-xs font-bold text-slate-400 mb-2 uppercase">타이머 (분)</label>
                 <input
                   type="number"
                   value={timerInput}
-                  onChange={e => setTimerInput(Number(e.target.value))}
+                  onChange={e => setTimerInput(Math.max(1, Number(e.target.value)))}
+                  min="1"
                   className="w-full px-4 py-3 rounded-xl bg-slate-700/50 border border-slate-600/50 text-white font-bold text-center text-xl outline-none focus:border-indigo-500"
                 />
               </div>

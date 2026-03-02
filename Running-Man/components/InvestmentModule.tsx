@@ -101,8 +101,9 @@ const InvestmentModule: React.FC<InvestmentModuleProps> = ({ gameState, myTeam, 
   const isTradeDisabled = gameState.currentStep !== GameStep.INVESTMENT ||
                           gameState.isInvestmentLocked;
 
-  // 매수취소 가능 여부 (투자 확정 전까지만 가능 - 타이머 잠금과 무관)
+  // 매수취소 가능 여부 (투자 잠금 또는 투자 확정 시 불가)
   const isCancelAllowed = gameState.currentStep === GameStep.INVESTMENT &&
+                          !gameState.isInvestmentLocked &&
                           !gameState.isInvestmentConfirmed;
 
   // 매수
