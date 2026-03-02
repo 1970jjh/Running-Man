@@ -768,3 +768,12 @@ html.light .stock-up {
 html.light .stock-down {
   color: #1d4ed8 !important;
 }
+
+/* 라이트 모드 - 타이머 디스플레이 배경 흰색 */
+html.light .timer-display-bg {
+  background-color: #ffffff !important;
+}
+
+html.light .timer-display-bg.border-slate-300 {
+  border-color: #cbd5e1 !important;
+}
