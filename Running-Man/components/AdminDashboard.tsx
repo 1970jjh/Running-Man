@@ -1829,46 +1829,46 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
 
               {/* 색상 범례 */}
               <div className="mb-3 p-3 rounded-lg bg-slate-700/30 border border-slate-600/50">
-                <p className="text-xs font-bold text-slate-300 mb-2">색상 안내:</p>
-                <div className="flex flex-wrap gap-3 text-xs">
-                  <span className="flex items-center gap-1">
-                    <span className="w-4 h-4 bg-emerald-500/50 border border-emerald-400"></span>
-                    <span className="text-slate-300">정보 구매 & 투자 일치</span>
+                <p className="text-sm font-black text-white mb-2">색상 안내:</p>
+                <div className="flex flex-wrap gap-4 text-sm">
+                  <span className="flex items-center gap-2">
+                    <span className="w-5 h-5 bg-emerald-500/50 border-2 border-emerald-400"></span>
+                    <span className="text-white font-medium">정보 구매 & 투자 일치</span>
                   </span>
-                  <span className="flex items-center gap-1">
-                    <span className="w-4 h-4 bg-amber-500/50 border border-amber-400"></span>
-                    <span className="text-slate-300">정보 없이 투자</span>
+                  <span className="flex items-center gap-2">
+                    <span className="w-5 h-5 bg-amber-500/50 border-2 border-amber-400"></span>
+                    <span className="text-white font-medium">정보 없이 투자</span>
                   </span>
-                  <span className="flex items-center gap-1">
-                    <span className="w-4 h-4 bg-pink-500/50 border border-pink-400"></span>
-                    <span className="text-slate-300">타팀 정보로 투자</span>
+                  <span className="flex items-center gap-2">
+                    <span className="w-5 h-5 bg-pink-500/50 border-2 border-pink-400"></span>
+                    <span className="text-white font-medium">타팀 정보로 투자</span>
                   </span>
-                  <span className="flex items-center gap-1">
-                    <span className="text-rose-400 font-bold">▲ 상승</span>
-                    <span className="text-blue-400 font-bold">▼ 하락</span>
+                  <span className="flex items-center gap-2">
+                    <span className="text-red-500 font-black text-base">▲ 상승</span>
+                    <span className="text-blue-600 font-black text-base">▼ 하락</span>
                   </span>
                 </div>
               </div>
 
               {/* 투자 테이블 */}
               <div className="overflow-x-auto">
-                <table className="w-full border-collapse text-sm">
+                <table className="w-full border-collapse text-base">
                   <thead>
                     <tr>
-                      <th className="sticky left-0 bg-slate-800 px-3 py-2 text-left text-xs font-bold text-slate-400 uppercase border-b-2 border-slate-600 z-10">
+                      <th className="sticky left-0 bg-slate-800 px-4 py-3 text-left text-sm font-black text-white uppercase border-b-2 border-slate-500 z-10">
                         종목
                       </th>
-                      <th className="bg-slate-800 px-3 py-2 text-right text-xs font-bold text-slate-400 uppercase border-b-2 border-slate-600">
+                      <th className="bg-slate-800 px-4 py-3 text-right text-sm font-black text-white uppercase border-b-2 border-slate-500">
                         이전가
                       </th>
-                      <th className="bg-slate-800 px-3 py-2 text-right text-xs font-bold text-slate-400 uppercase border-b-2 border-slate-600">
+                      <th className="bg-slate-800 px-4 py-3 text-right text-sm font-black text-white uppercase border-b-2 border-slate-500">
                         현재가
                       </th>
-                      <th className="bg-slate-800 px-3 py-2 text-center text-xs font-bold text-slate-400 uppercase border-b-2 border-slate-600">
+                      <th className="bg-slate-800 px-4 py-3 text-center text-sm font-black text-white uppercase border-b-2 border-slate-500">
                         등락률
                       </th>
                       {gameState.teams.map(team => (
-                        <th key={team.id} className="bg-slate-800 px-3 py-2 text-center text-xs font-bold text-indigo-300 uppercase border-b-2 border-slate-600">
+                        <th key={team.id} className="bg-slate-800 px-4 py-3 text-center text-sm font-black text-indigo-300 uppercase border-b-2 border-slate-500">
                           {team.teamName}
                         </th>
                       ))}
@@ -1894,29 +1894,29 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
 
                       return (
                         <tr key={stock.id} className={`${idx % 2 === 0 ? 'bg-slate-700/20' : 'bg-slate-700/10'} ${hasAnyInvestment ? '' : 'opacity-40'}`}>
-                          <td className="sticky left-0 bg-slate-800 px-3 py-2 border-b border-slate-600/30 z-10">
+                          <td className="sticky left-0 bg-slate-800 px-4 py-3 border-b border-slate-600/30 z-10">
                             <div className="flex items-center gap-2">
-                              <span className="w-8 h-8 rounded bg-gradient-to-br from-indigo-500/30 to-purple-500/30 flex items-center justify-center text-white font-bold text-sm">
+                              <span className="w-9 h-9 rounded bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-black text-base">
                                 {stock.id}
                               </span>
-                              <span className="text-white font-medium text-sm">{stock.name}</span>
+                              <span className="text-white font-bold text-base">{stock.name}</span>
                             </div>
                           </td>
-                          <td className="px-3 py-2 text-right border-b border-slate-600/30">
-                            <span className="text-slate-400 font-medium text-sm">
+                          <td className="px-4 py-3 text-right border-b border-slate-600/30">
+                            <span className="text-white font-semibold text-base">
                               {prevPrice.toLocaleString()}
                             </span>
                           </td>
-                          <td className="px-3 py-2 text-right border-b border-slate-600/30">
-                            <span className="text-white font-bold text-sm">
+                          <td className="px-4 py-3 text-right border-b border-slate-600/30">
+                            <span className="text-white font-black text-base">
                               {currentPrice.toLocaleString()}
                             </span>
                           </td>
-                          <td className="px-3 py-2 text-center border-b border-slate-600/30">
+                          <td className="px-4 py-3 text-center border-b border-slate-600/30">
                             {selectedTableRound === 1 ? (
-                              <span className="text-slate-500 font-medium text-sm">-</span>
+                              <span className="text-slate-500 font-bold text-base">-</span>
                             ) : (
-                              <span className={`font-bold text-sm ${priceChange >= 0 ? 'text-rose-400' : 'text-blue-400'}`}>
+                              <span className={`font-black text-base ${priceChange >= 0 ? 'text-red-500' : 'text-blue-600'}`}>
                                 {priceChange >= 0 ? '▲' : '▼'} {Math.abs(priceChange).toFixed(1)}%
                               </span>
                             )}
@@ -1962,14 +1962,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                             }
 
                             return (
-                              <td key={team.id} className={`px-3 py-2 text-center border-b border-slate-600/30 ${cellBgClass}`}>
+                              <td key={team.id} className={`px-4 py-3 text-center border-b border-slate-600/30 ${cellBgClass}`}>
                                 {qty > 0 ? (
                                   <div>
-                                    <span className="text-white font-bold text-sm">{qty}주</span>
-                                    <p className="text-xs text-slate-400">{(value / 10000).toFixed(0)}만</p>
+                                    <span className="text-white font-black text-base">{qty}주</span>
+                                    <p className="text-sm text-white font-medium">{(value / 10000).toFixed(0)}만</p>
                                   </div>
                                 ) : (
-                                  <span className="text-slate-600 text-sm">-</span>
+                                  <span className="text-slate-500 text-base font-medium">-</span>
                                 )}
                               </td>
                             );
@@ -1978,9 +1978,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                       );
                     })}
                     {/* 합계 행 */}
-                    <tr className="bg-indigo-500/20 font-bold">
-                      <td className="sticky left-0 bg-indigo-900/80 px-3 py-2 border-t-2 border-indigo-500/50 z-10" colSpan={4}>
-                        <span className="text-indigo-300 text-sm">주식 합계</span>
+                    <tr className="bg-indigo-500/30 font-bold">
+                      <td className="sticky left-0 bg-indigo-900/80 px-4 py-3 border-t-2 border-indigo-500/50 z-10" colSpan={4}>
+                        <span className="text-white text-base font-black">주식 합계</span>
                       </td>
                       {gameState.teams.map(team => {
                         let totalValue = 0;
@@ -2003,10 +2003,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                         }
 
                         return (
-                          <td key={team.id} className="px-3 py-2 text-center border-t-2 border-indigo-500/50">
+                          <td key={team.id} className="px-4 py-3 text-center border-t-2 border-indigo-500/50">
                             <div>
-                              <span className="text-amber-400 font-bold text-sm">{totalShares}주</span>
-                              <p className="text-xs text-indigo-300">{(totalValue / 10000).toFixed(0)}만원</p>
+                              <span className="text-amber-400 font-black text-base">{totalShares}주</span>
+                              <p className="text-sm text-white font-bold">{(totalValue / 10000).toFixed(0)}만원</p>
                             </div>
                           </td>
                         );
@@ -2014,22 +2014,22 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                     </tr>
                     {/* 보유현금 행 - 현재 라운드만 */}
                     {selectedTableRound === gameState.currentRound && (
-                      <tr className="bg-emerald-500/10">
-                        <td className="sticky left-0 bg-emerald-900/50 px-3 py-2 z-10" colSpan={4}>
-                          <span className="text-emerald-300 text-sm font-bold">보유현금</span>
+                      <tr className="bg-emerald-500/20">
+                        <td className="sticky left-0 bg-emerald-900/60 px-4 py-3 z-10" colSpan={4}>
+                          <span className="text-white text-base font-black">보유현금</span>
                         </td>
                         {gameState.teams.map(team => (
-                          <td key={team.id} className="px-3 py-2 text-center">
-                            <span className="text-emerald-400 font-bold text-sm">{(team.currentCash / 10000).toFixed(0)}만</span>
+                          <td key={team.id} className="px-4 py-3 text-center">
+                            <span className="text-emerald-400 font-black text-base">{(team.currentCash / 10000).toFixed(0)}만</span>
                           </td>
                         ))}
                       </tr>
                     )}
                     {/* 총자산 행 - 현재 라운드만 */}
                     {selectedTableRound === gameState.currentRound && (
-                      <tr className="bg-amber-500/20 font-bold">
-                        <td className="sticky left-0 bg-amber-900/50 px-3 py-2 z-10" colSpan={4}>
-                          <span className="text-amber-300 text-sm">총자산</span>
+                      <tr className="bg-amber-500/30 font-bold">
+                        <td className="sticky left-0 bg-amber-900/60 px-4 py-3 z-10" colSpan={4}>
+                          <span className="text-white text-base font-black">총자산</span>
                         </td>
                         {gameState.teams.map(team => {
                           const portfolioValue = Object.entries(team.portfolio).reduce((sum, [stockId, qty]) => {
@@ -2039,10 +2039,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                           const totalAsset = team.currentCash + portfolioValue;
                           const profitRate = ((totalAsset - INITIAL_SEED_MONEY) / INITIAL_SEED_MONEY) * 100;
                           return (
-                            <td key={team.id} className="px-3 py-2 text-center">
+                            <td key={team.id} className="px-4 py-3 text-center">
                               <div>
-                                <span className="text-amber-400 font-bold text-sm">{(totalAsset / 10000).toFixed(0)}만</span>
-                                <p className={`text-xs ${profitRate >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                <span className="text-amber-400 font-black text-lg">{(totalAsset / 10000).toFixed(0)}만</span>
+                                <p className={`text-sm font-bold ${profitRate >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                                   {profitRate >= 0 ? '+' : ''}{profitRate.toFixed(1)}%
                                 </p>
                               </div>
@@ -2057,7 +2057,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
 
               <button
                 onClick={() => setShowInvestmentTable(false)}
-                className="btn-3d w-full mt-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-3 rounded-xl font-bold text-sm"
+                className="btn-3d w-full mt-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-4 rounded-xl font-bold text-base"
               >
                 닫기
               </button>
