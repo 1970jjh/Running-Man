@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { GameState, Team, Stock, GameStep } from '../types';
 import { getMaxInvestmentRatio } from '../constants';
 import { TradeRequest } from '../firebase';
@@ -17,6 +17,51 @@ const InvestmentModule: React.FC<InvestmentModuleProps> = ({ gameState, myTeam, 
   const [qty, setQty] = useState(0);
   const [showLimitWarning, setShowLimitWarning] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false); // 거래 처리 중 상태
+  const [cancellingStockId, setCancellingStockId] = useState<string | null>(null); // 매수취소 처리 중인 종목
+
+  // 롱프레스 관련 ref
+  const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const longPressIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const longPressSpeedRef = useRef(200); // 초기 간격 (ms)
+
+  // 롱프레스 정리 함수
+  const clearLongPress = useCallback(() => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+    if (longPressIntervalRef.current) {
+      clearInterval(longPressIntervalRef.current);
+      longPressIntervalRef.current = null;
+    }
+    longPressSpeedRef.current = 200;
+  }, []);
+
+  // 컴포넌트 언마운트 시 정리
+  useEffect(() => {
+    return () => clearLongPress();
+  }, [clearLongPress]);
+
+  // 롱프레스 시작 (direction: 1 = 증가, -1 = 감소)
+  const startLongPress = useCallback((direction: 1 | -1) => {
+    clearLongPress();
+    let speed = 200;
+    let count = 0;
+
+    longPressTimerRef.current = setTimeout(() => {
+      const tick = () => {
+        setQty(q => Math.max(0, q + direction));
+        count++;
+        // 점점 빨라짐: 10회마다 속도 증가
+        if (count % 10 === 0 && speed > 30) {
+          speed = Math.max(30, speed - 40);
+          if (longPressIntervalRef.current) clearInterval(longPressIntervalRef.current);
+          longPressIntervalRef.current = setInterval(tick, speed);
+        }
+      };
+      longPressIntervalRef.current = setInterval(tick, speed);
+    }, 300); // 300ms 후 롱프레스 시작
+  }, [clearLongPress]);
 
   // 현재 라운드의 주가 인덱스 (prices[0]=2010=1R, prices[1]=1R결과=2R, ...)
   const currentRoundIdx = gameState.currentRound - 1;
@@ -46,6 +91,10 @@ const InvestmentModule: React.FC<InvestmentModuleProps> = ({ gameState, myTeam, 
   // 투자 가능 여부 (타이머와 관계없이 isInvestmentLocked만 체크)
   const isTradeDisabled = gameState.currentStep !== GameStep.INVESTMENT ||
                           gameState.isInvestmentLocked;
+
+  // 매수취소 가능 여부 (투자 확정 전까지만 가능 - 타이머 잠금과 무관)
+  const isCancelAllowed = gameState.currentStep === GameStep.INVESTMENT &&
+                          !gameState.isInvestmentConfirmed;
 
   // 매수
   const handleBuy = async () => {
@@ -137,6 +186,39 @@ const InvestmentModule: React.FC<InvestmentModuleProps> = ({ gameState, myTeam, 
     }
   };
 
+  // 매수취소 (보유 주식 전량 매도로 원복)
+  const handleCancelBuy = async (stock: Stock) => {
+    const heldQty = myTeam.portfolio[stock.id] || 0;
+    if (heldQty <= 0 || isProcessing) return;
+
+    setCancellingStockId(stock.id);
+
+    try {
+      const price = stock.prices[currentRoundIdx];
+      const result = await onTrade({
+        type: 'SELL',
+        stockId: stock.id,
+        stockName: stock.name,
+        quantity: heldQty,
+        pricePerShare: price,
+        round: gameState.currentRound,
+        maxInvestablePerStock
+      });
+
+      if (!result.success) {
+        alert(result.error || '매수취소 처리 중 오류가 발생했습니다.');
+        return;
+      }
+      await resumeAudioContext();
+      playTradeSound();
+    } catch (error) {
+      console.error('매수취소 처리 실패:', error);
+      alert('매수취소 처리 중 오류가 발생했습니다. 다시 시도해주세요.');
+    } finally {
+      setTimeout(() => setCancellingStockId(null), 500);
+    }
+  };
+
   // 최대 매수 가능 수량 계산
   const maxBuyQty = useMemo(() => {
     if (!selectedStock) return 0;
@@ -191,56 +273,89 @@ const InvestmentModule: React.FC<InvestmentModuleProps> = ({ gameState, myTeam, 
             }
 
             return (
-              <button
-                key={stock.id}
-                onClick={() => setSelectedStock(stock)}
-                className="w-full stock-card p-4 rounded-2xl flex items-center gap-4 transition-all transform hover:scale-[1.02] active:scale-[0.98]"
-              >
-                {/* 종목 아이콘 */}
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500/30 to-purple-500/30 flex items-center justify-center border border-indigo-500/20">
-                  <span className="text-lg font-black text-white">{stock.id}</span>
-                </div>
+              <div key={stock.id} className="stock-card rounded-2xl transition-all transform">
+                <button
+                  onClick={() => setSelectedStock(stock)}
+                  className="w-full p-4 flex items-center gap-4 hover:scale-[1.02] active:scale-[0.98] transition-transform"
+                >
+                  {/* 종목 아이콘 */}
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500/30 to-purple-500/30 flex items-center justify-center border border-indigo-500/20">
+                    <span className="text-lg font-black text-white">{stock.id}</span>
+                  </div>
 
-                {/* 종목 정보 */}
-                <div className="flex-1 text-left">
-                  <div className="flex items-center gap-2">
-                    <p className="font-bold text-white">{stock.name}</p>
-                    {heldQty > 0 && (
-                      <span className="bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded text-[10px] font-bold">
-                        {heldQty}주 보유
-                      </span>
+                  {/* 종목 정보 */}
+                  <div className="flex-1 text-left">
+                    <div className="flex items-center gap-2">
+                      <p className="font-bold text-white">{stock.name}</p>
+                      {heldQty > 0 && (
+                        <span className="bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded text-[10px] font-bold">
+                          {heldQty}주 보유
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-400">{stock.id} Corp</p>
+                  </div>
+
+                  {/* 가격 & 변동 (이전 라운드 대비) */}
+                  <div className="text-right">
+                    <p className="font-black text-white font-display">{price.toLocaleString()}원</p>
+                    {currentRoundIdx === 0 ? (
+                      <p className="text-xs font-bold text-slate-500">- 0.0%</p>
+                    ) : (
+                      <p className={`text-xs font-bold ${change >= 0 ? 'text-rose-400' : 'text-blue-400'}`}>
+                        {change >= 0 ? '▲' : '▼'} {Math.abs(change).toFixed(1)}%
+                      </p>
                     )}
                   </div>
-                  <p className="text-xs text-slate-400">{stock.id} Corp</p>
-                </div>
 
-                {/* 가격 & 변동 (이전 라운드 대비) */}
-                <div className="text-right">
-                  <p className="font-black text-white font-display">{price.toLocaleString()}원</p>
-                  {currentRoundIdx === 0 ? (
-                    <p className="text-xs font-bold text-slate-500">- 0.0%</p>
-                  ) : (
-                    <p className={`text-xs font-bold ${change >= 0 ? 'text-rose-400' : 'text-blue-400'}`}>
-                      {change >= 0 ? '▲' : '▼'} {Math.abs(change).toFixed(1)}%
-                    </p>
-                  )}
-                </div>
-
-                {/* 투자 비율 인디케이터 */}
-                {heldQty > 0 && (
-                  <div className="w-16">
-                    <div className="h-1 bg-slate-700 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full transition-all ${
-                          investRatio >= 25 ? 'bg-amber-500' : 'bg-emerald-500'
-                        }`}
-                        style={{ width: `${Math.min(100, (investRatio / 30) * 100)}%` }}
-                      />
+                  {/* 투자 비율 인디케이터 */}
+                  {heldQty > 0 && (
+                    <div className="w-16">
+                      <div className="h-1 bg-slate-700 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full transition-all ${
+                            investRatio >= 25 ? 'bg-amber-500' : 'bg-emerald-500'
+                          }`}
+                          style={{ width: `${Math.min(100, (investRatio / 30) * 100)}%` }}
+                        />
+                      </div>
+                      <p className="text-[10px] text-slate-500 text-center mt-1">{investRatio.toFixed(1)}%</p>
                     </div>
-                    <p className="text-[10px] text-slate-500 text-center mt-1">{investRatio.toFixed(1)}%</p>
+                  )}
+                </button>
+
+                {/* 매수취소 버튼 - 보유 중이고 투자 확정 전에만 표시 */}
+                {heldQty > 0 && isCancelAllowed && (
+                  <div className="px-4 pb-3 -mt-1">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleCancelBuy(stock);
+                      }}
+                      disabled={cancellingStockId === stock.id}
+                      className={`w-full py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 ${
+                        cancellingStockId === stock.id
+                          ? 'bg-slate-700/50 text-slate-500 cursor-not-allowed'
+                          : 'bg-gradient-to-r from-orange-500/20 to-amber-500/20 border border-orange-500/40 text-orange-300 hover:from-orange-500/30 hover:to-amber-500/30 active:scale-[0.98]'
+                      }`}
+                    >
+                      {cancellingStockId === stock.id ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin"></div>
+                          취소 처리중...
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/>
+                          </svg>
+                          매수취소 ({heldQty}주 전량)
+                        </>
+                      )}
+                    </button>
                   </div>
                 )}
-              </button>
+              </div>
             );
           })}
         </div>
@@ -336,7 +451,12 @@ const InvestmentModule: React.FC<InvestmentModuleProps> = ({ gameState, myTeam, 
             <div className="flex items-center gap-2 w-full">
               <button
                 onClick={() => setQty(q => Math.max(0, q - 1))}
-                className="flex-shrink-0 w-12 h-12 rounded-lg bg-slate-700/50 text-white font-bold text-xl hover:bg-slate-700 transition-colors flex items-center justify-center"
+                onMouseDown={() => startLongPress(-1)}
+                onMouseUp={clearLongPress}
+                onMouseLeave={clearLongPress}
+                onTouchStart={() => startLongPress(-1)}
+                onTouchEnd={clearLongPress}
+                className="flex-shrink-0 w-14 h-14 rounded-xl bg-slate-700/50 text-white font-bold text-2xl hover:bg-slate-700 active:bg-slate-600 transition-colors flex items-center justify-center select-none"
               >
                 -
               </button>
@@ -370,11 +490,16 @@ const InvestmentModule: React.FC<InvestmentModuleProps> = ({ gameState, myTeam, 
                   // 마우스 휠로 수량 변경 방지
                   e.currentTarget.blur();
                 }}
-                className="flex-1 min-w-0 h-12 px-2 rounded-lg bg-slate-700/50 border-2 border-slate-600/50 text-white font-bold text-lg text-center outline-none focus:border-indigo-500"
+                className="flex-1 min-w-0 h-14 px-2 rounded-xl bg-slate-700/50 border-2 border-slate-600/50 text-white font-bold text-xl text-center outline-none focus:border-indigo-500"
               />
               <button
                 onClick={() => setQty(q => q + 1)}
-                className="flex-shrink-0 w-12 h-12 rounded-lg bg-slate-700/50 text-white font-bold text-xl hover:bg-slate-700 transition-colors flex items-center justify-center"
+                onMouseDown={() => startLongPress(1)}
+                onMouseUp={clearLongPress}
+                onMouseLeave={clearLongPress}
+                onTouchStart={() => startLongPress(1)}
+                onTouchEnd={clearLongPress}
+                className="flex-shrink-0 w-14 h-14 rounded-xl bg-slate-700/50 text-white font-bold text-2xl hover:bg-slate-700 active:bg-slate-600 transition-colors flex items-center justify-center select-none"
               >
                 +
               </button>
