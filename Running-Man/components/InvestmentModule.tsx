@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
 import { GameState, Team, Stock, GameStep } from '../types';
-import { getMaxInvestmentRatio } from '../constants';
+import { getMaxInvestmentRatio, INFO_CARDS, INITIAL_SEED_MONEY } from '../constants';
 import { TradeRequest } from '../firebase';
 import { playTradeSound, resumeAudioContext } from '../utils/sounds';
 
@@ -18,6 +18,8 @@ const InvestmentModule: React.FC<InvestmentModuleProps> = ({ gameState, myTeam, 
   const [showLimitWarning, setShowLimitWarning] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false); // 거래 처리 중 상태
   const [cancellingStockId, setCancellingStockId] = useState<string | null>(null); // 매수취소 처리 중인 종목
+  const [showInvestmentTable, setShowInvestmentTable] = useState(false); // 투자현황 테이블 모달
+  const [selectedTableRound, setSelectedTableRound] = useState<number>(1); // 선택된 라운드
 
   // 롱프레스 관련 ref
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -41,6 +43,13 @@ const InvestmentModule: React.FC<InvestmentModuleProps> = ({ gameState, myTeam, 
   useEffect(() => {
     return () => clearLongPress();
   }, [clearLongPress]);
+
+  // 투자현황 테이블 열 때 현재 라운드로 초기화
+  useEffect(() => {
+    if (showInvestmentTable) {
+      setSelectedTableRound(gameState.currentRound);
+    }
+  }, [showInvestmentTable, gameState.currentRound]);
 
   // 롱프레스 시작 (direction: 1 = 증가, -1 = 감소)
   const startLongPress = useCallback((direction: 1 | -1) => {
@@ -254,6 +263,17 @@ const InvestmentModule: React.FC<InvestmentModuleProps> = ({ gameState, myTeam, 
           💡 한 종목당 총 자산의 <span className="text-amber-300 font-bold">{(investmentRatio * 100).toFixed(0)}%</span>까지 투자 가능
           <span className="ml-2 text-slate-500">(최대 {maxInvestablePerStock.toLocaleString()}원)</span>
         </p>
+
+        {/* 전체 투자현황 보기 버튼 */}
+        <button
+          onClick={() => setShowInvestmentTable(true)}
+          className="mt-3 w-full py-2.5 rounded-xl bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 font-bold text-sm hover:bg-indigo-500/30 transition-all flex items-center justify-center gap-2"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2"/>
+          </svg>
+          📊 전체 투자현황 테이블 보기
+        </button>
       </div>
 
       {!selectedStock ? (
@@ -588,6 +608,252 @@ const InvestmentModule: React.FC<InvestmentModuleProps> = ({ gameState, myTeam, 
             >
               확인
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* 전체 투자현황 테이블 모달 */}
+      {showInvestmentTable && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-start justify-center p-2 overflow-auto">
+          <div className="iso-card bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl max-w-[95vw] w-full border border-slate-700/50 my-2">
+            <div className="p-3 md:p-5">
+              <div className="flex justify-between items-center mb-3">
+                <h2 className="text-lg font-black text-white flex items-center gap-2">
+                  📊 전체 투자현황
+                </h2>
+                <button
+                  onClick={() => setShowInvestmentTable(false)}
+                  className="p-2 rounded-lg bg-slate-700/50 text-slate-400 hover:text-white transition-colors"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/>
+                  </svg>
+                </button>
+              </div>
+
+              {/* 라운드 탭 */}
+              <div className="flex gap-2 mb-3 overflow-x-auto pb-2">
+                {Array.from({ length: gameState.currentRound }, (_, i) => i + 1).map(round => {
+                  // 해당 라운드 결과가 공개되었는지 확인
+                  // 현재 라운드는 revealedResults, 이전 라운드는 항상 공개됨
+                  const isRevealed = round < gameState.currentRound || gameState.revealedResults;
+
+                  return (
+                    <button
+                      key={round}
+                      onClick={() => setSelectedTableRound(round)}
+                      className={`px-4 py-2 font-bold text-sm whitespace-nowrap transition-all flex items-center gap-1 ${
+                        selectedTableRound === round
+                          ? 'bg-indigo-600 text-white border-2 border-indigo-400'
+                          : 'bg-slate-700/50 text-slate-400 border-2 border-slate-600 hover:text-white hover:border-slate-500'
+                      }`}
+                    >
+                      {round}R
+                      {round === gameState.currentRound && ' (현재)'}
+                      {isRevealed && round < gameState.currentRound && ' ✓'}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* 안내 메시지 */}
+              {(() => {
+                const isCurrentRound = selectedTableRound === gameState.currentRound;
+                const isRevealed = !isCurrentRound || gameState.revealedResults;
+
+                return (
+                  <div className={`mb-3 p-3 rounded-lg border ${
+                    isRevealed
+                      ? 'bg-emerald-500/10 border-emerald-500/30'
+                      : 'bg-amber-500/10 border-amber-500/30'
+                  }`}>
+                    <p className={`text-sm font-medium text-center ${isRevealed ? 'text-emerald-300' : 'text-amber-300'}`}>
+                      {isRevealed
+                        ? '✅ 결과가 공개되어 모든 팀의 투자 현황을 볼 수 있습니다.'
+                        : '⏳ 결과 공개 전입니다. 주가 정보와 내 팀 투자만 확인 가능합니다.'}
+                    </p>
+                  </div>
+                );
+              })()}
+
+              {/* 색상 범례 */}
+              <div className="mb-3 p-3 rounded-lg bg-slate-700/30 border border-slate-600/50">
+                <p className="text-sm font-black text-white mb-2">색상 안내:</p>
+                <div className="flex flex-wrap gap-4 text-sm">
+                  <span className="flex items-center gap-2">
+                    <span className="w-5 h-5 bg-emerald-500/50 border-2 border-emerald-400"></span>
+                    <span className="text-white font-medium">정보 구매 후 투자</span>
+                  </span>
+                  <span className="flex items-center gap-2">
+                    <span className="w-5 h-5 bg-amber-500/50 border-2 border-amber-400"></span>
+                    <span className="text-white font-medium">정보 없이 투자</span>
+                  </span>
+                  <span className="flex items-center gap-2">
+                    <span className="text-red-500 font-black text-base">▲ 상승</span>
+                    <span className="text-blue-600 font-black text-base">▼ 하락</span>
+                  </span>
+                </div>
+              </div>
+
+              {/* 투자 테이블 */}
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse text-base">
+                  <thead>
+                    <tr>
+                      <th className="sticky left-0 bg-slate-800 px-4 py-3 text-left text-sm font-black text-white uppercase border-b-2 border-slate-500 z-10">
+                        종목
+                      </th>
+                      <th className="bg-slate-800 px-4 py-3 text-right text-sm font-black text-white uppercase border-b-2 border-slate-500">
+                        이전가
+                      </th>
+                      <th className="bg-slate-800 px-4 py-3 text-right text-sm font-black text-white uppercase border-b-2 border-slate-500">
+                        현재가
+                      </th>
+                      <th className="bg-slate-800 px-4 py-3 text-center text-sm font-black text-white uppercase border-b-2 border-slate-500">
+                        등락률
+                      </th>
+                      {/* 내 팀은 항상 표시 */}
+                      <th className="bg-indigo-900/50 px-4 py-3 text-center text-sm font-black text-indigo-300 uppercase border-b-2 border-indigo-500/50">
+                        {myTeam.teamName} (나)
+                      </th>
+                      {/* 다른 팀: 결과 공개된 라운드만 표시 */}
+                      {(selectedTableRound < gameState.currentRound || gameState.revealedResults) &&
+                        gameState.teams
+                          .filter(team => team.id !== myTeam.id)
+                          .map(team => (
+                            <th key={team.id} className="bg-slate-800 px-4 py-3 text-center text-sm font-black text-slate-300 uppercase border-b-2 border-slate-500">
+                              {team.teamName}
+                            </th>
+                          ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {gameState.stocks.map((stock, idx) => {
+                      const currentPrice = stock.prices[selectedTableRound - 1];
+                      const prevPrice = selectedTableRound > 1 ? stock.prices[selectedTableRound - 2] : stock.prices[0];
+                      const priceChange = selectedTableRound > 1 ? ((currentPrice - prevPrice) / prevPrice) * 100 : 0;
+
+                      // 내 팀의 보유 수량
+                      let myQty = 0;
+                      if (selectedTableRound === gameState.currentRound) {
+                        myQty = myTeam.portfolio[stock.id] || 0;
+                      } else {
+                        myQty = myTeam.transactionHistory?.filter(tx =>
+                          tx.round === selectedTableRound && tx.stockId === stock.id && tx.type === 'BUY'
+                        ).reduce((sum, tx) => sum + tx.quantity, 0) || 0;
+                      }
+
+                      // 내 팀이 이 주식 정보를 가지고 있는지
+                      const myTeamHasInfo = myTeam.unlockedCards?.some(cardId => {
+                        const card = INFO_CARDS.find(c => c.id === cardId);
+                        return card && card.stockId === stock.id;
+                      }) || false;
+
+                      const myValue = myQty * currentPrice;
+                      let myCellBgClass = '';
+                      if (myQty > 0) {
+                        myCellBgClass = myTeamHasInfo
+                          ? 'bg-emerald-500/30 border-l-4 border-emerald-400'
+                          : 'bg-amber-500/30 border-l-4 border-amber-400';
+                      }
+
+                      const isRevealed = selectedTableRound < gameState.currentRound || gameState.revealedResults;
+
+                      return (
+                        <tr key={stock.id} className={idx % 2 === 0 ? 'bg-slate-700/20' : 'bg-slate-700/10'}>
+                          <td className="sticky left-0 bg-slate-800 px-4 py-3 border-b border-slate-600/30 z-10">
+                            <div className="flex items-center gap-2">
+                              <span className="w-9 h-9 rounded bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-black text-base">
+                                {stock.id}
+                              </span>
+                              <span className="text-white font-bold text-base">{stock.name}</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-right border-b border-slate-600/30">
+                            <span className="text-white font-semibold text-base">
+                              {prevPrice.toLocaleString()}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-right border-b border-slate-600/30">
+                            <span className="text-white font-black text-base">
+                              {currentPrice.toLocaleString()}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-center border-b border-slate-600/30">
+                            {selectedTableRound === 1 ? (
+                              <span className="text-slate-500 font-bold text-base">-</span>
+                            ) : (
+                              <span className={`font-black text-base ${priceChange >= 0 ? 'text-red-500' : 'text-blue-600'}`}>
+                                {priceChange >= 0 ? '▲' : '▼'} {Math.abs(priceChange).toFixed(1)}%
+                              </span>
+                            )}
+                          </td>
+                          {/* 내 팀 */}
+                          <td className={`px-4 py-3 text-center border-b border-slate-600/30 ${myCellBgClass}`}>
+                            {myQty > 0 ? (
+                              <div>
+                                <span className="text-white font-black text-base">{myQty}주</span>
+                                <p className="text-sm text-white font-medium">{(myValue / 10000).toFixed(0)}만</p>
+                              </div>
+                            ) : (
+                              <span className="text-slate-500 text-base font-medium">-</span>
+                            )}
+                          </td>
+                          {/* 다른 팀 (공개된 경우만) */}
+                          {isRevealed &&
+                            gameState.teams
+                              .filter(team => team.id !== myTeam.id)
+                              .map(team => {
+                                let qty = 0;
+                                if (selectedTableRound === gameState.currentRound) {
+                                  qty = team.portfolio[stock.id] || 0;
+                                } else {
+                                  qty = team.transactionHistory?.filter(tx =>
+                                    tx.round === selectedTableRound && tx.stockId === stock.id && tx.type === 'BUY'
+                                  ).reduce((sum, tx) => sum + tx.quantity, 0) || 0;
+                                }
+
+                                const value = qty * currentPrice;
+
+                                const teamHasInfo = team.unlockedCards?.some(cardId => {
+                                  const card = INFO_CARDS.find(c => c.id === cardId);
+                                  return card && card.stockId === stock.id;
+                                }) || false;
+
+                                let cellBgClass = '';
+                                if (qty > 0) {
+                                  cellBgClass = teamHasInfo
+                                    ? 'bg-emerald-500/30 border-l-4 border-emerald-400'
+                                    : 'bg-amber-500/30 border-l-4 border-amber-400';
+                                }
+
+                                return (
+                                  <td key={team.id} className={`px-4 py-3 text-center border-b border-slate-600/30 ${cellBgClass}`}>
+                                    {qty > 0 ? (
+                                      <div>
+                                        <span className="text-white font-black text-base">{qty}주</span>
+                                        <p className="text-sm text-white font-medium">{(value / 10000).toFixed(0)}만</p>
+                                      </div>
+                                    ) : (
+                                      <span className="text-slate-500 text-base font-medium">-</span>
+                                    )}
+                                  </td>
+                                );
+                              })}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              <button
+                onClick={() => setShowInvestmentTable(false)}
+                className="btn-3d w-full mt-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-4 rounded-xl font-bold text-base"
+              >
+                닫기
+              </button>
+            </div>
           </div>
         </div>
       )}
