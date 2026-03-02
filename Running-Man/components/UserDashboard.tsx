@@ -21,8 +21,10 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
   const [viewingCard, setViewingCard] = useState<string | null>(null);
   const [showStepNotification, setShowStepNotification] = useState(false);
   const [showTradeClosedPopup, setShowTradeClosedPopup] = useState(false);
+  const [showOneMinuteWarning, setShowOneMinuteWarning] = useState(false);
   const prevStepRef = useRef<GameStep | null>(null);
   const prevLockedRef = useRef<boolean>(false);
+  const oneMinuteWarningShownRef = useRef<boolean>(false);
 
   // 투자 잠금 감지 → 매매거래 시간마감 팝업
   useEffect(() => {
@@ -47,6 +49,28 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
     }
     prevStepRef.current = gameState.currentStep;
   }, [gameState.currentStep]);
+
+  // 1분 남았을 때 경고 팝업
+  useEffect(() => {
+    if (
+      gameState.currentStep === GameStep.INVESTMENT &&
+      gameState.isTimerRunning &&
+      gameState.timerSeconds === 60 &&
+      !oneMinuteWarningShownRef.current
+    ) {
+      oneMinuteWarningShownRef.current = true;
+      setShowOneMinuteWarning(true);
+      // 3초 후 자동 닫기
+      const timer = setTimeout(() => {
+        setShowOneMinuteWarning(false);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+    // 라운드가 바뀌거나 투자 단계가 아닌 경우 리셋
+    if (gameState.currentStep !== GameStep.INVESTMENT || gameState.timerSeconds > 60) {
+      oneMinuteWarningShownRef.current = false;
+    }
+  }, [gameState.timerSeconds, gameState.currentStep, gameState.isTimerRunning]);
 
   // 총 자산 계산
   const totalAssets = useMemo(() => {
@@ -148,19 +172,31 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
             </div>
           </div>
 
-          {/* 타이머 (투자 단계일 때) */}
+          {/* 타이머 (투자 단계일 때) - 크고 잘 보이게 */}
           {gameState.currentStep === GameStep.INVESTMENT && (
-            <div className="mt-4">
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-xs text-slate-400 font-bold">투자 시간</span>
-                <span className={`text-sm font-black font-display ${
+            <div className={`mt-4 p-4 rounded-2xl border-2 transition-all ${
+              gameState.timerSeconds < 60
+                ? 'bg-rose-500/10 border-rose-500/50 animate-pulse'
+                : gameState.timerSeconds < 180
+                  ? 'bg-amber-500/10 border-amber-500/30'
+                  : 'bg-emerald-500/10 border-emerald-500/30'
+            }`}>
+              <div className="flex justify-between items-center mb-3">
+                <span className={`text-sm font-bold flex items-center gap-2 ${
+                  gameState.timerSeconds < 60 ? 'text-rose-300' :
+                  gameState.timerSeconds < 180 ? 'text-amber-300' : 'text-emerald-300'
+                }`}>
+                  <span className="text-lg">⏱</span>
+                  투자 시간
+                </span>
+                <span className={`text-3xl md:text-4xl font-black font-display tabular-nums tracking-wider ${
                   gameState.timerSeconds < 60 ? 'text-rose-400' :
                   gameState.timerSeconds < 180 ? 'text-amber-400' : 'text-emerald-400'
                 }`}>
                   {Math.floor(gameState.timerSeconds / 60)}:{(gameState.timerSeconds % 60).toString().padStart(2, '0')}
                 </span>
               </div>
-              <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
+              <div className="h-3 bg-slate-700 rounded-full overflow-hidden">
                 <div
                   className={`h-full transition-all duration-1000 ${
                     gameState.timerSeconds < 60 ? 'bg-gradient-to-r from-rose-500 to-rose-400' :
@@ -171,7 +207,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
                 />
               </div>
               {gameState.isInvestmentLocked && (
-                <p className="text-xs text-rose-400 mt-2 text-center font-bold">🔒 투자가 잠금되었습니다</p>
+                <p className="text-sm text-rose-400 mt-3 text-center font-bold">🔒 투자가 잠금되었습니다</p>
               )}
             </div>
           )}
@@ -755,6 +791,27 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
             <p className="text-sm text-slate-400 mb-6">투자 시간이 종료되었습니다.<br/>더 이상 매매가 불가합니다.</p>
             <button
               onClick={() => setShowTradeClosedPopup(false)}
+              className="w-full py-3 rounded-xl font-bold btn-3d bg-gradient-to-r from-rose-500 to-pink-500 text-white"
+            >
+              확인
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 1분 경고 팝업 */}
+      {showOneMinuteWarning && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 animate-fade-in">
+          <div className="iso-card bg-gradient-to-br from-rose-900/90 to-slate-900 rounded-2xl p-6 max-w-sm w-full border-2 border-rose-500/70 text-center animate-scale-in">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-rose-500/30 flex items-center justify-center animate-pulse">
+              <span className="text-4xl">⚠️</span>
+            </div>
+            <h3 className="text-xl font-black text-rose-300 mb-3">장마감까지 1분 남았습니다</h3>
+            <p className="text-sm text-slate-300 mb-5 leading-relaxed">
+              팀원들과 함께 의논하여<br/>빠르게 투자 결정을 마쳐주세요
+            </p>
+            <button
+              onClick={() => setShowOneMinuteWarning(false)}
               className="w-full py-3 rounded-xl font-bold btn-3d bg-gradient-to-r from-rose-500 to-pink-500 text-white"
             >
               확인
