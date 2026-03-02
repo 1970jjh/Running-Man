@@ -93,14 +93,25 @@ body {
   z-index: -1;
 }
 
-/* 라이트 모드 배경 */
+/* 라이트 모드 배경 - 주식 차트 배경 적용 */
 html.light .app-background {
-  background-image: none;
-  background-color: var(--bg-primary);
+  background-image: url('https://i.ibb.co/nqJDYrBC/1.jpg');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
 }
 
 html.light .app-background::before {
-  background: transparent;
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.92) 0%,
+    rgba(248, 250, 252, 0.88) 50%,
+    rgba(241, 245, 249, 0.92) 100%
+  );
+  backdrop-filter: saturate(120%) brightness(1.1);
 }
 
 /* 스크롤바 - 브루탈리즘 블루 */
