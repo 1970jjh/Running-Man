@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { GameState, GameStatus, GameStep, Team, Room } from '../types';
 import { STOCK_DATA, INITIAL_SEED_MONEY, INFO_CARDS, STEP_NAMES, ADMIN_PASSWORD } from '../constants';
 import {
@@ -13,6 +13,7 @@ import {
   getFirebaseError
 } from '../firebase';
 import analyzeTeamPerformance, { AnalysisReport } from '../gemini';
+import { playTimerEndSound, resumeAudioContext } from '../utils/sounds';
 
 interface AdminDashboardProps {
   onLogout: () => void;
@@ -57,6 +58,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     'bg-purple-500', 'bg-cyan-500', 'bg-pink-500', 'bg-indigo-500',
     'bg-orange-500', 'bg-teal-500'
   ];
+
+  // 독립 타이머 상태 (정보협상 등 다양한 용도)
+  const [showStandaloneTimer, setShowStandaloneTimer] = useState(false);
+  const [standaloneTimerSeconds, setStandaloneTimerSeconds] = useState(180); // 3분 기본
+  const [standaloneTimerMax, setStandaloneTimerMax] = useState(180);
+  const [standaloneTimerRunning, setStandaloneTimerRunning] = useState(false);
+  const [standaloneTimerInput, setStandaloneTimerInput] = useState(180);
+  const standaloneTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // 주가 정보 이미지 모달 상태
   const [showStockPriceImage, setShowStockPriceImage] = useState(false);
@@ -315,7 +324,65 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     setIsPriceRevealed(false);
   }, [selectedTableRound]);
 
-  // 타이머 관리
+  // 독립 타이머 관리
+  useEffect(() => {
+    if (standaloneTimerRunning && standaloneTimerSeconds > 0) {
+      standaloneTimerRef.current = setInterval(() => {
+        setStandaloneTimerSeconds(prev => {
+          if (prev <= 1) {
+            // 타이머 종료
+            setStandaloneTimerRunning(false);
+            // 종료음 재생
+            resumeAudioContext().then(() => {
+              playTimerEndSound();
+              // 3번 더 재생 (총 4번)
+              setTimeout(() => playTimerEndSound(), 800);
+              setTimeout(() => playTimerEndSound(), 1600);
+              setTimeout(() => playTimerEndSound(), 2400);
+            });
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } else if (standaloneTimerRef.current) {
+      clearInterval(standaloneTimerRef.current);
+    }
+
+    return () => {
+      if (standaloneTimerRef.current) {
+        clearInterval(standaloneTimerRef.current);
+      }
+    };
+  }, [standaloneTimerRunning]);
+
+  // 독립 타이머 시작
+  const startStandaloneTimer = useCallback(() => {
+    setStandaloneTimerSeconds(standaloneTimerInput);
+    setStandaloneTimerMax(standaloneTimerInput);
+    setStandaloneTimerRunning(true);
+  }, [standaloneTimerInput]);
+
+  // 독립 타이머 일시정지/재개
+  const toggleStandaloneTimer = useCallback(() => {
+    setStandaloneTimerRunning(prev => !prev);
+  }, []);
+
+  // 독립 타이머 리셋
+  const resetStandaloneTimer = useCallback(() => {
+    setStandaloneTimerRunning(false);
+    setStandaloneTimerSeconds(standaloneTimerInput);
+    setStandaloneTimerMax(standaloneTimerInput);
+  }, [standaloneTimerInput]);
+
+  // 독립 타이머 시간 포맷
+  const formatStandaloneTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // 기존 타이머 관리
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (gameState?.isTimerRunning && gameState?.timerSeconds > 0) {
@@ -2409,6 +2476,186 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               닫기
             </button>
           </div>
+        </div>
+      )}
+
+      {/* 독립 타이머 플로팅 버튼 - 게임 관리 화면에서만 표시 */}
+      {view === 'room-manage' && gameState && (
+        <button
+          onClick={() => setShowStandaloneTimer(true)}
+          className="fixed bottom-32 right-5 z-50 w-14 h-14 bg-gradient-to-br from-orange-500 to-red-600 text-white rounded-none border-3 border-black shadow-[4px_4px_0_#000] hover:shadow-[6px_6px_0_#000] hover:translate-x-[-2px] hover:translate-y-[-2px] transition-all flex items-center justify-center"
+          title="타이머 열기"
+        >
+          <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+        </button>
+      )}
+
+      {/* 독립 타이머 모달 (정보협상 등 다용도) */}
+      {showStandaloneTimer && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+          <div className="iso-card bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl w-full max-w-lg border border-orange-500/50">
+            <div className="p-6">
+              {/* 헤더 */}
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-black text-white flex items-center gap-3">
+                  ⏱️ 범용 타이머
+                </h2>
+                <button
+                  onClick={() => setShowStandaloneTimer(false)}
+                  className="p-2 rounded-lg bg-slate-700/50 text-slate-400 hover:text-white transition-colors"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/>
+                  </svg>
+                </button>
+              </div>
+
+              {/* 타이머 디스플레이 */}
+              <div className="mb-6">
+                <div className={`text-center p-8 rounded-xl border-4 ${
+                  standaloneTimerSeconds <= 10 && standaloneTimerRunning
+                    ? 'bg-rose-500/20 border-rose-500 animate-pulse'
+                    : standaloneTimerSeconds <= 30 && standaloneTimerRunning
+                    ? 'bg-amber-500/20 border-amber-500'
+                    : 'bg-slate-700/30 border-slate-600'
+                }`}>
+                  <div className={`text-8xl font-black font-mono tracking-wider ${
+                    standaloneTimerSeconds <= 10 && standaloneTimerRunning
+                      ? 'text-rose-400'
+                      : standaloneTimerSeconds <= 30 && standaloneTimerRunning
+                      ? 'text-amber-400'
+                      : 'text-white'
+                  }`}>
+                    {formatStandaloneTime(standaloneTimerSeconds)}
+                  </div>
+                  {/* 프로그레스 바 */}
+                  <div className="mt-4 h-3 bg-slate-700 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full transition-all duration-1000 ${
+                        standaloneTimerSeconds <= 10
+                          ? 'bg-rose-500'
+                          : standaloneTimerSeconds <= 30
+                          ? 'bg-amber-500'
+                          : 'bg-emerald-500'
+                      }`}
+                      style={{ width: `${(standaloneTimerSeconds / standaloneTimerMax) * 100}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* 시간 설정 (타이머가 멈춰있을 때만) */}
+              {!standaloneTimerRunning && (
+                <div className="mb-6">
+                  <label className="block text-sm font-bold text-slate-400 mb-2">시간 설정 (초)</label>
+                  <div className="flex gap-2">
+                    {[60, 120, 180, 300, 600].map(sec => (
+                      <button
+                        key={sec}
+                        onClick={() => {
+                          setStandaloneTimerInput(sec);
+                          setStandaloneTimerSeconds(sec);
+                          setStandaloneTimerMax(sec);
+                        }}
+                        className={`flex-1 py-3 rounded-lg font-bold text-lg transition-all ${
+                          standaloneTimerInput === sec
+                            ? 'bg-orange-500 text-white border-2 border-orange-400'
+                            : 'bg-slate-700/50 text-slate-300 border-2 border-slate-600 hover:border-slate-500'
+                        }`}
+                      >
+                        {sec >= 60 ? `${Math.floor(sec / 60)}분` : `${sec}초`}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="mt-3 flex items-center gap-3">
+                    <input
+                      type="number"
+                      value={standaloneTimerInput}
+                      onChange={e => {
+                        const val = Math.max(1, Number(e.target.value));
+                        setStandaloneTimerInput(val);
+                        setStandaloneTimerSeconds(val);
+                        setStandaloneTimerMax(val);
+                      }}
+                      className="flex-1 px-4 py-3 rounded-lg bg-slate-700/50 border-2 border-slate-600 text-white font-bold text-xl text-center"
+                      min="1"
+                    />
+                    <span className="text-slate-400 font-bold">초</span>
+                  </div>
+                </div>
+              )}
+
+              {/* 컨트롤 버튼 */}
+              <div className="grid grid-cols-3 gap-3">
+                {!standaloneTimerRunning ? (
+                  <button
+                    onClick={startStandaloneTimer}
+                    className="col-span-2 py-4 rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 text-white font-black text-xl border-3 border-black shadow-[4px_4px_0_#000] hover:shadow-[6px_6px_0_#000] hover:translate-x-[-2px] hover:translate-y-[-2px] transition-all flex items-center justify-center gap-2"
+                  >
+                    <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M8 5v14l11-7z"/>
+                    </svg>
+                    시작
+                  </button>
+                ) : (
+                  <button
+                    onClick={toggleStandaloneTimer}
+                    className="col-span-2 py-4 rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 text-white font-black text-xl border-3 border-black shadow-[4px_4px_0_#000] hover:shadow-[6px_6px_0_#000] hover:translate-x-[-2px] hover:translate-y-[-2px] transition-all flex items-center justify-center gap-2"
+                  >
+                    <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M6 4h4v16H6zm8 0h4v16h-4z"/>
+                    </svg>
+                    일시정지
+                  </button>
+                )}
+                <button
+                  onClick={resetStandaloneTimer}
+                  className="py-4 rounded-xl bg-slate-700 text-white font-black text-xl border-3 border-black shadow-[4px_4px_0_#000] hover:shadow-[6px_6px_0_#000] hover:translate-x-[-2px] hover:translate-y-[-2px] transition-all flex items-center justify-center gap-2"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                  </svg>
+                  리셋
+                </button>
+              </div>
+
+              {/* 용도 안내 */}
+              <div className="mt-6 p-4 rounded-xl bg-slate-700/30 border border-slate-600/50">
+                <p className="text-sm text-slate-400 text-center">
+                  💡 정보협상, 미니게임, 토론 등 다양한 상황에서 사용하세요.<br/>
+                  타이머 종료 시 <span className="text-orange-400 font-bold">띠링띠링</span> 알림음이 울립니다.
+                </p>
+              </div>
+
+              {/* 닫기 버튼 */}
+              <button
+                onClick={() => setShowStandaloneTimer(false)}
+                className="w-full mt-4 py-3 rounded-xl bg-slate-700/50 text-slate-400 font-bold hover:text-white hover:bg-slate-700 transition-all"
+              >
+                닫기 (타이머는 계속 작동)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 타이머 작동 중 미니 인디케이터 (모달 닫혀있을 때) */}
+      {!showStandaloneTimer && standaloneTimerRunning && view === 'room-manage' && (
+        <div
+          onClick={() => setShowStandaloneTimer(true)}
+          className={`fixed bottom-32 right-5 z-50 px-4 py-2 rounded-none border-3 border-black shadow-[4px_4px_0_#000] cursor-pointer transition-all ${
+            standaloneTimerSeconds <= 10
+              ? 'bg-rose-500 animate-pulse'
+              : standaloneTimerSeconds <= 30
+              ? 'bg-amber-500'
+              : 'bg-emerald-500'
+          }`}
+        >
+          <span className="text-white font-black text-2xl font-mono">
+            {formatStandaloneTime(standaloneTimerSeconds)}
+          </span>
         </div>
       )}
     </div>
