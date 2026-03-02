@@ -33,19 +33,19 @@
 }
 
 html.light {
-  /* 라이트 테마 */
-  --bg-primary: #f5f5f5;
-  --bg-secondary: #e8e8e8;
+  /* 라이트 테마 - 선명한 버전 */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8fafc;
   --bg-card: #ffffff;
-  --bg-hover: #f0f0f0;
-  --text-primary: #1a1a1a;
-  --text-secondary: #4a4a4a;
-  --text-muted: #888888;
-  --border-primary: #1a1a1a;
-  --border-secondary: #cccccc;
-  --shadow-color: #1a1a1a;
+  --bg-hover: #f1f5f9;
+  --text-primary: #000000;
+  --text-secondary: #000000;
+  --text-muted: #374151;
+  --border-primary: #000000;
+  --border-secondary: #e2e8f0;
+  --shadow-color: #000000;
   --accent-blue: #2563eb;
-  --overlay-bg: rgba(255, 255, 255, 0.85);
+  --overlay-bg: rgba(255, 255, 255, 0.95);
 }
 
 body {
@@ -701,15 +701,15 @@ html.light .font-black {
   font-weight: 900 !important;
 }
 
-/* 라이트 모드 그래디언트 텍스트 */
+/* 라이트 모드 색상 - 더 선명하게 */
 html.light .text-indigo-300,
 html.light .text-indigo-400 {
-  color: #4f46e5 !important;
+  color: #3730a3 !important;
 }
 
 html.light .text-emerald-300,
 html.light .text-emerald-400 {
-  color: #059669 !important;
+  color: #047857 !important;
 }
 
 html.light .text-rose-300,
@@ -719,9 +719,41 @@ html.light .text-rose-400 {
 
 html.light .text-amber-300,
 html.light .text-amber-400 {
-  color: #d97706 !important;
+  color: #b45309 !important;
 }
 
 html.light .text-purple-300 {
-  color: #7c3aed !important;
+  color: #6d28d9 !important;
+}
+
+html.light .text-blue-400 {
+  color: #1d4ed8 !important;
+}
+
+/* 라이트 모드 테이블 스타일 */
+html.light table {
+  background: var(--bg-card);
+}
+
+html.light th {
+  background: var(--bg-secondary) !important;
+  color: #000000 !important;
+  font-weight: 700 !important;
+}
+
+html.light td {
+  color: #000000 !important;
+}
+
+html.light .text-slate-600 {
+  color: #64748b !important;
+}
+
+/* 라이트 모드 - 주가 상승/하락 색상 (더 선명하게) */
+html.light .stock-up {
+  color: #dc2626 !important;
+}
+
+html.light .stock-down {
+  color: #1d4ed8 !important;
 }
