@@ -47,6 +47,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
 
   // 투자 테이블 모달 상태
   const [showInvestmentTable, setShowInvestmentTable] = useState(false);
+  const [selectedTableRound, setSelectedTableRound] = useState<number>(1);
 
   // 주가 정보 이미지 모달 상태
   const [showStockPriceImage, setShowStockPriceImage] = useState(false);
@@ -289,6 +290,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     setEditingTeamId(null);
     setEditingTeamName('');
   };
+
+  // 투자 테이블 열 때 현재 라운드로 초기화
+  useEffect(() => {
+    if (showInvestmentTable && gameState) {
+      setSelectedTableRound(gameState.currentRound);
+    }
+  }, [showInvestmentTable, gameState?.currentRound]);
 
   // 타이머 관리
   useEffect(() => {
@@ -1791,7 +1799,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               <div className="flex justify-between items-center mb-3">
                 <h2 className="text-lg font-black text-white flex items-center gap-2">
                   📊 전체 투자 현황 테이블
-                  <span className="text-xs font-normal text-slate-400 ml-1">Round {gameState.currentRound}</span>
                 </h2>
                 <button
                   onClick={() => setShowInvestmentTable(false)}
@@ -1803,26 +1810,65 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                 </button>
               </div>
 
-              {/* 테이블 설명 */}
-              <div className="mb-2 p-2 rounded-lg bg-indigo-500/20 border border-indigo-500/30">
-                <p className="text-indigo-300 text-xs font-medium text-center">
-                  각 팀이 어떤 종목을 몇 주 보유하고 있는지 한눈에 확인할 수 있습니다.
-                </p>
+              {/* 라운드 탭 */}
+              <div className="flex gap-2 mb-3 overflow-x-auto pb-2">
+                {Array.from({ length: gameState.currentRound }, (_, i) => i + 1).map(round => (
+                  <button
+                    key={round}
+                    onClick={() => setSelectedTableRound(round)}
+                    className={`px-4 py-2 font-bold text-sm whitespace-nowrap transition-all ${
+                      selectedTableRound === round
+                        ? 'bg-indigo-600 text-white border-2 border-indigo-400'
+                        : 'bg-slate-700/50 text-slate-400 border-2 border-slate-600 hover:text-white hover:border-slate-500'
+                    }`}
+                  >
+                    {round}R {round === gameState.currentRound ? '(현재)' : ''}
+                  </button>
+                ))}
+              </div>
+
+              {/* 색상 범례 */}
+              <div className="mb-3 p-3 rounded-lg bg-slate-700/30 border border-slate-600/50">
+                <p className="text-xs font-bold text-slate-300 mb-2">색상 안내:</p>
+                <div className="flex flex-wrap gap-3 text-xs">
+                  <span className="flex items-center gap-1">
+                    <span className="w-4 h-4 bg-emerald-500/50 border border-emerald-400"></span>
+                    <span className="text-slate-300">정보 구매 & 투자 일치</span>
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="w-4 h-4 bg-amber-500/50 border border-amber-400"></span>
+                    <span className="text-slate-300">정보 없이 투자</span>
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="w-4 h-4 bg-pink-500/50 border border-pink-400"></span>
+                    <span className="text-slate-300">타팀 정보로 투자</span>
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <span className="text-rose-400 font-bold">▲ 상승</span>
+                    <span className="text-blue-400 font-bold">▼ 하락</span>
+                  </span>
+                </div>
               </div>
 
               {/* 투자 테이블 */}
               <div className="overflow-x-auto">
-                <table className="w-full border-collapse text-xs">
+                <table className="w-full border-collapse text-sm">
                   <thead>
                     <tr>
-                      <th className="sticky left-0 bg-slate-800 px-2 py-1.5 text-left text-[10px] font-bold text-slate-400 uppercase border-b border-slate-600/50 z-10">
+                      <th className="sticky left-0 bg-slate-800 px-3 py-2 text-left text-xs font-bold text-slate-400 uppercase border-b-2 border-slate-600 z-10">
                         종목
                       </th>
-                      <th className="bg-slate-800 px-2 py-1.5 text-right text-[10px] font-bold text-slate-400 uppercase border-b border-slate-600/50">
-                        주가
+                      <th className="bg-slate-800 px-3 py-2 text-right text-xs font-bold text-slate-400 uppercase border-b-2 border-slate-600">
+                        이전가
+                      </th>
+                      <th className="bg-slate-800 px-3 py-2 text-right text-xs font-bold text-slate-400 uppercase border-b-2 border-slate-600">
+                        현재가
+                      </th>
+                      <th className="bg-slate-800 px-3 py-2 text-center text-xs font-bold text-slate-400 uppercase border-b-2 border-slate-600">
+                        등락률
                       </th>
                       {gameState.teams.map(team => (
-                        <th key={team.id} className="bg-slate-800 px-2 py-1.5 text-center text-[10px] font-bold text-indigo-300 uppercase border-b border-slate-600/50">
+                        <th key={team.id} className="bg-slate-800 px-3 py-2 text-center text-xs font-bold text-indigo-300 uppercase border-b-2 border-slate-600">
                           {team.teamName}
                         </th>
                       ))}
@@ -1830,31 +1876,100 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                   </thead>
                   <tbody>
                     {gameState.stocks.map((stock, idx) => {
-                      const hasAnyInvestment = gameState.teams.some(team => (team.portfolio[stock.id] || 0) > 0);
+                      // 선택된 라운드 기준 데이터
+                      const currentPrice = stock.prices[selectedTableRound - 1];
+                      const prevPrice = selectedTableRound > 1 ? stock.prices[selectedTableRound - 2] : stock.prices[0];
+                      const priceChange = selectedTableRound > 1 ? ((currentPrice - prevPrice) / prevPrice) * 100 : 0;
+
+                      // 해당 라운드에서 투자가 있는지 (roundResults 기준 또는 현재 portfolio)
+                      const hasAnyInvestment = gameState.teams.some(team => {
+                        if (selectedTableRound === gameState.currentRound) {
+                          return (team.portfolio[stock.id] || 0) > 0;
+                        }
+                        // 이전 라운드는 해당 라운드의 거래내역 확인
+                        return team.transactionHistory?.some(tx =>
+                          tx.round === selectedTableRound && tx.stockId === stock.id && tx.type === 'BUY'
+                        );
+                      });
+
                       return (
-                        <tr key={stock.id} className={`${idx % 2 === 0 ? 'bg-slate-700/20' : 'bg-slate-700/10'} ${hasAnyInvestment ? '' : 'opacity-50'}`}>
-                          <td className="sticky left-0 bg-slate-800 px-2 py-1 border-b border-slate-600/30 z-10">
-                            <span className="w-6 h-6 rounded bg-gradient-to-br from-indigo-500/30 to-purple-500/30 flex items-center justify-center text-white font-bold text-[11px]">
-                              {stock.name}
+                        <tr key={stock.id} className={`${idx % 2 === 0 ? 'bg-slate-700/20' : 'bg-slate-700/10'} ${hasAnyInvestment ? '' : 'opacity-40'}`}>
+                          <td className="sticky left-0 bg-slate-800 px-3 py-2 border-b border-slate-600/30 z-10">
+                            <div className="flex items-center gap-2">
+                              <span className="w-8 h-8 rounded bg-gradient-to-br from-indigo-500/30 to-purple-500/30 flex items-center justify-center text-white font-bold text-sm">
+                                {stock.id}
+                              </span>
+                              <span className="text-white font-medium text-sm">{stock.name}</span>
+                            </div>
+                          </td>
+                          <td className="px-3 py-2 text-right border-b border-slate-600/30">
+                            <span className="text-slate-400 font-medium text-sm">
+                              {prevPrice.toLocaleString()}
                             </span>
                           </td>
-                          <td className="px-2 py-1 text-right border-b border-slate-600/30">
-                            <span className="text-white font-bold text-[11px]">
-                              {stock.prices[gameState.currentRound - 1].toLocaleString()}
+                          <td className="px-3 py-2 text-right border-b border-slate-600/30">
+                            <span className="text-white font-bold text-sm">
+                              {currentPrice.toLocaleString()}
                             </span>
+                          </td>
+                          <td className="px-3 py-2 text-center border-b border-slate-600/30">
+                            {selectedTableRound === 1 ? (
+                              <span className="text-slate-500 font-medium text-sm">-</span>
+                            ) : (
+                              <span className={`font-bold text-sm ${priceChange >= 0 ? 'text-rose-400' : 'text-blue-400'}`}>
+                                {priceChange >= 0 ? '▲' : '▼'} {Math.abs(priceChange).toFixed(1)}%
+                              </span>
+                            )}
                           </td>
                           {gameState.teams.map(team => {
-                            const qty = team.portfolio[stock.id] || 0;
-                            const value = qty * stock.prices[gameState.currentRound - 1];
+                            // 현재 라운드면 portfolio, 이전 라운드면 거래내역에서 계산
+                            let qty = 0;
+                            if (selectedTableRound === gameState.currentRound) {
+                              qty = team.portfolio[stock.id] || 0;
+                            } else {
+                              // 해당 라운드의 매수 수량 합계
+                              qty = team.transactionHistory?.filter(tx =>
+                                tx.round === selectedTableRound && tx.stockId === stock.id && tx.type === 'BUY'
+                              ).reduce((sum, tx) => sum + tx.quantity, 0) || 0;
+                            }
+
+                            const value = qty * currentPrice;
+
+                            // 정보 구매 확인 - 해당 주식에 대한 정보카드를 팀이 보유하고 있는지
+                            const teamHasInfo = team.unlockedCards?.some(cardId => {
+                              const card = INFO_CARDS.find(c => c.id === cardId);
+                              return card && card.stockId === stock.id;
+                            }) || false;
+
+                            // 다른 팀이 해당 주식 정보를 가지고 있는지
+                            const otherTeamHasInfo = gameState.teams.some(t =>
+                              t.id !== team.id && t.unlockedCards?.some(cardId => {
+                                const card = INFO_CARDS.find(c => c.id === cardId);
+                                return card && card.stockId === stock.id;
+                              })
+                            );
+
+                            // 색상 결정
+                            let cellBgClass = '';
+                            if (qty > 0) {
+                              if (teamHasInfo) {
+                                cellBgClass = 'bg-emerald-500/30 border-l-4 border-emerald-400';
+                              } else if (otherTeamHasInfo) {
+                                cellBgClass = 'bg-pink-500/30 border-l-4 border-pink-400';
+                              } else {
+                                cellBgClass = 'bg-amber-500/30 border-l-4 border-amber-400';
+                              }
+                            }
+
                             return (
-                              <td key={team.id} className="px-2 py-1 text-center border-b border-slate-600/30">
+                              <td key={team.id} className={`px-3 py-2 text-center border-b border-slate-600/30 ${cellBgClass}`}>
                                 {qty > 0 ? (
                                   <div>
-                                    <span className="text-emerald-400 font-bold text-[11px]">{qty}주</span>
-                                    <p className="text-[9px] text-slate-500">{(value / 10000).toFixed(0)}만</p>
+                                    <span className="text-white font-bold text-sm">{qty}주</span>
+                                    <p className="text-xs text-slate-400">{(value / 10000).toFixed(0)}만</p>
                                   </div>
                                 ) : (
-                                  <span className="text-slate-600">-</span>
+                                  <span className="text-slate-600 text-sm">-</span>
                                 )}
                               </td>
                             );
@@ -1864,76 +1979,85 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                     })}
                     {/* 합계 행 */}
                     <tr className="bg-indigo-500/20 font-bold">
-                      <td className="sticky left-0 bg-indigo-900/80 px-2 py-1 border-t-2 border-indigo-500/50 z-10">
-                        <span className="text-indigo-300 text-[11px]">합계</span>
-                      </td>
-                      <td className="px-2 py-1 text-right border-t-2 border-indigo-500/50">
-                        <span className="text-slate-400 text-[11px]">-</span>
+                      <td className="sticky left-0 bg-indigo-900/80 px-3 py-2 border-t-2 border-indigo-500/50 z-10" colSpan={4}>
+                        <span className="text-indigo-300 text-sm">주식 합계</span>
                       </td>
                       {gameState.teams.map(team => {
-                        const totalValue = Object.entries(team.portfolio).reduce((sum, [stockId, qty]) => {
-                          const stock = gameState.stocks.find(s => s.id === stockId);
-                          return sum + (qty * (stock?.prices[gameState.currentRound - 1] || 0));
-                        }, 0);
-                        const totalShares = Object.values(team.portfolio).reduce((sum, qty) => sum + qty, 0);
+                        let totalValue = 0;
+                        let totalShares = 0;
+
+                        if (selectedTableRound === gameState.currentRound) {
+                          totalValue = Object.entries(team.portfolio).reduce((sum, [stockId, qty]) => {
+                            const stock = gameState.stocks.find(s => s.id === stockId);
+                            return sum + (qty * (stock?.prices[selectedTableRound - 1] || 0));
+                          }, 0);
+                          totalShares = Object.values(team.portfolio).reduce((sum, qty) => sum + qty, 0);
+                        } else {
+                          // 이전 라운드는 거래내역에서 계산
+                          const roundTxs = team.transactionHistory?.filter(tx => tx.round === selectedTableRound && tx.type === 'BUY') || [];
+                          totalShares = roundTxs.reduce((sum, tx) => sum + tx.quantity, 0);
+                          totalValue = roundTxs.reduce((sum, tx) => {
+                            const stock = gameState.stocks.find(s => s.id === tx.stockId);
+                            return sum + (tx.quantity * (stock?.prices[selectedTableRound - 1] || 0));
+                          }, 0);
+                        }
+
                         return (
-                          <td key={team.id} className="px-2 py-1 text-center border-t-2 border-indigo-500/50">
+                          <td key={team.id} className="px-3 py-2 text-center border-t-2 border-indigo-500/50">
                             <div>
-                              <span className="text-amber-400 font-bold text-[11px]">{totalShares}주</span>
-                              <p className="text-[9px] text-indigo-300">{(totalValue / 10000).toFixed(0)}만원</p>
+                              <span className="text-amber-400 font-bold text-sm">{totalShares}주</span>
+                              <p className="text-xs text-indigo-300">{(totalValue / 10000).toFixed(0)}만원</p>
                             </div>
                           </td>
                         );
                       })}
                     </tr>
-                    {/* 보유현금 행 */}
-                    <tr className="bg-emerald-500/10">
-                      <td className="sticky left-0 bg-emerald-900/50 px-2 py-1 z-10">
-                        <span className="text-emerald-300 text-[11px] font-bold">보유현금</span>
-                      </td>
-                      <td className="px-2 py-1 text-right">
-                        <span className="text-slate-400 text-[11px]">-</span>
-                      </td>
-                      {gameState.teams.map(team => (
-                        <td key={team.id} className="px-2 py-1 text-center">
-                          <span className="text-emerald-400 font-bold text-[11px]">{(team.currentCash / 10000).toFixed(0)}만</span>
+                    {/* 보유현금 행 - 현재 라운드만 */}
+                    {selectedTableRound === gameState.currentRound && (
+                      <tr className="bg-emerald-500/10">
+                        <td className="sticky left-0 bg-emerald-900/50 px-3 py-2 z-10" colSpan={4}>
+                          <span className="text-emerald-300 text-sm font-bold">보유현금</span>
                         </td>
-                      ))}
-                    </tr>
-                    {/* 총자산 행 */}
-                    <tr className="bg-amber-500/20 font-bold">
-                      <td className="sticky left-0 bg-amber-900/50 px-2 py-1 z-10">
-                        <span className="text-amber-300 text-[11px]">총자산</span>
-                      </td>
-                      <td className="px-2 py-1 text-right">
-                        <span className="text-slate-400 text-[11px]">-</span>
-                      </td>
-                      {gameState.teams.map(team => {
-                        const portfolioValue = Object.entries(team.portfolio).reduce((sum, [stockId, qty]) => {
-                          const stock = gameState.stocks.find(s => s.id === stockId);
-                          return sum + (qty * (stock?.prices[gameState.currentRound - 1] || 0));
-                        }, 0);
-                        const totalAsset = team.currentCash + portfolioValue;
-                        const profitRate = ((totalAsset - INITIAL_SEED_MONEY) / INITIAL_SEED_MONEY) * 100;
-                        return (
-                          <td key={team.id} className="px-2 py-1 text-center">
-                            <div>
-                              <span className="text-amber-400 font-bold text-[11px]">{(totalAsset / 10000).toFixed(0)}만</span>
-                              <p className={`text-[9px] ${profitRate >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                                {profitRate >= 0 ? '+' : ''}{profitRate.toFixed(1)}%
-                              </p>
-                            </div>
+                        {gameState.teams.map(team => (
+                          <td key={team.id} className="px-3 py-2 text-center">
+                            <span className="text-emerald-400 font-bold text-sm">{(team.currentCash / 10000).toFixed(0)}만</span>
                           </td>
-                        );
-                      })}
-                    </tr>
+                        ))}
+                      </tr>
+                    )}
+                    {/* 총자산 행 - 현재 라운드만 */}
+                    {selectedTableRound === gameState.currentRound && (
+                      <tr className="bg-amber-500/20 font-bold">
+                        <td className="sticky left-0 bg-amber-900/50 px-3 py-2 z-10" colSpan={4}>
+                          <span className="text-amber-300 text-sm">총자산</span>
+                        </td>
+                        {gameState.teams.map(team => {
+                          const portfolioValue = Object.entries(team.portfolio).reduce((sum, [stockId, qty]) => {
+                            const stock = gameState.stocks.find(s => s.id === stockId);
+                            return sum + (qty * (stock?.prices[selectedTableRound - 1] || 0));
+                          }, 0);
+                          const totalAsset = team.currentCash + portfolioValue;
+                          const profitRate = ((totalAsset - INITIAL_SEED_MONEY) / INITIAL_SEED_MONEY) * 100;
+                          return (
+                            <td key={team.id} className="px-3 py-2 text-center">
+                              <div>
+                                <span className="text-amber-400 font-bold text-sm">{(totalAsset / 10000).toFixed(0)}만</span>
+                                <p className={`text-xs ${profitRate >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                  {profitRate >= 0 ? '+' : ''}{profitRate.toFixed(1)}%
+                                </p>
+                              </div>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
 
               <button
                 onClick={() => setShowInvestmentTable(false)}
-                className="btn-3d w-full mt-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-3 rounded-xl font-bold text-sm"
+                className="btn-3d w-full mt-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-3 rounded-xl font-bold text-sm"
               >
                 닫기
               </button>

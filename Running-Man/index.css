@@ -12,13 +12,52 @@
   box-sizing: border-box;
 }
 
+/* ============================================
+   테마 변수 (다크/라이트)
+   ============================================ */
+
+:root {
+  /* 다크 테마 (기본) */
+  --bg-primary: #0a0a0a;
+  --bg-secondary: #111111;
+  --bg-card: #000000;
+  --bg-hover: #1a1a1a;
+  --text-primary: #ffffff;
+  --text-secondary: #a0a0a0;
+  --text-muted: #666666;
+  --border-primary: #ffffff;
+  --border-secondary: #444444;
+  --shadow-color: #ffffff;
+  --accent-blue: #3b82f6;
+  --overlay-bg: rgba(0, 0, 0, 0.75);
+}
+
+html.light {
+  /* 라이트 테마 */
+  --bg-primary: #f5f5f5;
+  --bg-secondary: #e8e8e8;
+  --bg-card: #ffffff;
+  --bg-hover: #f0f0f0;
+  --text-primary: #1a1a1a;
+  --text-secondary: #4a4a4a;
+  --text-muted: #888888;
+  --border-primary: #1a1a1a;
+  --border-secondary: #cccccc;
+  --shadow-color: #1a1a1a;
+  --accent-blue: #2563eb;
+  --overlay-bg: rgba(255, 255, 255, 0.85);
+}
+
 body {
   font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: #0a0a0a;
+  background: var(--bg-primary);
+  color: var(--text-primary);
   min-height: 100vh;
   overflow-x: hidden;
+  font-size: 16px;
+  line-height: 1.6;
 }
 
 #root {
@@ -50,8 +89,18 @@ body {
   content: '';
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.75);
+  background: var(--overlay-bg);
   z-index: -1;
+}
+
+/* 라이트 모드 배경 */
+html.light .app-background {
+  background-image: none;
+  background-color: var(--bg-primary);
+}
+
+html.light .app-background::before {
+  background: transparent;
 }
 
 /* 스크롤바 - 브루탈리즘 블루 */
@@ -79,18 +128,27 @@ body {
    ============================================ */
 
 .iso-card {
-  background: #000 !important;
-  border: 3px solid #fff !important;
-  box-shadow: 6px 6px 0 #fff !important;
+  background: var(--bg-card) !important;
+  border: 3px solid var(--border-primary) !important;
+  box-shadow: 6px 6px 0 var(--shadow-color) !important;
   transition: all 0.15s ease !important;
   transform: none !important;
   border-radius: 0 !important;
 }
 
 .iso-card:hover {
-  box-shadow: 8px 8px 0 #3b82f6 !important;
-  border-color: #3b82f6 !important;
+  box-shadow: 8px 8px 0 var(--accent-blue) !important;
+  border-color: var(--accent-blue) !important;
   transform: translate(-2px, -2px) !important;
+}
+
+/* 라이트 모드 카드 */
+html.light .iso-card {
+  box-shadow: 4px 4px 0 var(--shadow-color) !important;
+}
+
+html.light .iso-card:hover {
+  box-shadow: 6px 6px 0 var(--accent-blue) !important;
 }
 
 /* ============================================
@@ -484,4 +542,186 @@ input[type="number"] {
 
 .btn-success:hover {
   background: #059669 !important;
+}
+
+/* ============================================
+   테마 토글 버튼
+   ============================================ */
+
+.theme-toggle-btn {
+  position: fixed;
+  bottom: 76px;
+  right: 20px;
+  z-index: 9999;
+  width: 48px;
+  height: 48px;
+  border-radius: 0;
+  background: var(--bg-card);
+  border: 3px solid var(--border-primary);
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.1s ease;
+  box-shadow: 4px 4px 0 var(--shadow-color);
+}
+
+.theme-toggle-btn:hover {
+  background: var(--accent-blue);
+  color: #fff;
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0 var(--shadow-color);
+}
+
+.theme-toggle-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: 2px 2px 0 var(--shadow-color);
+}
+
+@media (max-width: 768px) {
+  .theme-toggle-btn {
+    bottom: 72px;
+    right: 16px;
+    width: 44px;
+    height: 44px;
+  }
+}
+
+/* ============================================
+   라이트 모드 추가 스타일
+   ============================================ */
+
+/* 라이트 모드 텍스트 색상 오버라이드 */
+html.light .text-white {
+  color: var(--text-primary) !important;
+}
+
+html.light .text-slate-400,
+html.light .text-slate-500 {
+  color: var(--text-secondary) !important;
+}
+
+html.light .text-slate-300 {
+  color: var(--text-secondary) !important;
+}
+
+/* 라이트 모드 배경 오버라이드 */
+html.light .bg-slate-800,
+html.light .bg-slate-900,
+html.light .bg-slate-700 {
+  background-color: var(--bg-secondary) !important;
+}
+
+html.light .from-slate-800,
+html.light .to-slate-900 {
+  --tw-gradient-from: var(--bg-secondary) !important;
+  --tw-gradient-to: var(--bg-card) !important;
+}
+
+/* 라이트 모드 보더 */
+html.light .border-slate-700,
+html.light .border-slate-600 {
+  border-color: var(--border-secondary) !important;
+}
+
+/* 라이트 모드 주식 카드 */
+html.light .stock-card {
+  background: var(--bg-card) !important;
+  border: 2px solid var(--border-secondary) !important;
+  box-shadow: 3px 3px 0 var(--shadow-color) !important;
+}
+
+html.light .stock-card:hover {
+  border-color: var(--accent-blue) !important;
+  box-shadow: 4px 4px 0 var(--accent-blue) !important;
+  background: var(--bg-hover) !important;
+}
+
+/* 라이트 모드 입력 필드 */
+html.light input,
+html.light select,
+html.light textarea {
+  background: var(--bg-card) !important;
+  border: 2px solid var(--border-secondary) !important;
+  color: var(--text-primary) !important;
+}
+
+html.light input:focus,
+html.light select:focus,
+html.light textarea:focus {
+  border-color: var(--accent-blue) !important;
+  box-shadow: 3px 3px 0 var(--accent-blue) !important;
+}
+
+html.light input::placeholder {
+  color: var(--text-muted) !important;
+}
+
+/* 라이트 모드 버튼 */
+html.light .btn-3d {
+  background: var(--text-primary) !important;
+  color: var(--bg-card) !important;
+  border: 3px solid var(--text-primary) !important;
+  box-shadow: 4px 4px 0 var(--text-primary) !important;
+}
+
+html.light .btn-3d:hover {
+  background: var(--accent-blue) !important;
+  color: #fff !important;
+}
+
+/* 라이트 모드 스크롤바 */
+html.light ::-webkit-scrollbar-track {
+  background: var(--bg-secondary);
+  border: 2px solid var(--border-secondary);
+}
+
+html.light ::-webkit-scrollbar-thumb {
+  background: var(--text-primary);
+  border: 2px solid var(--bg-card);
+}
+
+/* 라이트 모드 헤더 */
+html.light header {
+  background: var(--bg-card) !important;
+  border-color: var(--border-secondary) !important;
+}
+
+/* 라이트 모드에서 텍스트 가독성 향상 */
+html.light {
+  font-weight: 500;
+}
+
+html.light .font-bold {
+  font-weight: 700 !important;
+}
+
+html.light .font-black {
+  font-weight: 900 !important;
+}
+
+/* 라이트 모드 그래디언트 텍스트 */
+html.light .text-indigo-300,
+html.light .text-indigo-400 {
+  color: #4f46e5 !important;
+}
+
+html.light .text-emerald-300,
+html.light .text-emerald-400 {
+  color: #059669 !important;
+}
+
+html.light .text-rose-300,
+html.light .text-rose-400 {
+  color: #dc2626 !important;
+}
+
+html.light .text-amber-300,
+html.light .text-amber-400 {
+  color: #d97706 !important;
+}
+
+html.light .text-purple-300 {
+  color: #7c3aed !important;
 }
