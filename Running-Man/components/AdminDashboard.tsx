@@ -540,13 +540,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     });
   };
 
-  // 결과 발표 (사용자에게 공개) - 이미 공개된 경우 주식현황판 표시
+  // 결과 발표 (사용자에게 공개) - 이미 공개된 경우 결과 모달 표시
   const revealResults = async () => {
     if (!gameState) return;
 
-    // 이미 결과가 공개된 경우 주식현황판 열기
+    // 이미 결과가 공개된 경우 결과 모달 열기
     if (gameState.revealedResults) {
-      setShowInvestmentTable(true);
+      setShowResultModal(true);
       return;
     }
 
@@ -1359,14 +1359,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               {/* 타이머 시작 */}
               <button
                 onClick={startInvestment}
-                disabled={gameState.currentStep !== GameStep.INVESTMENT}
+                disabled={gameState.currentStep !== GameStep.INVESTMENT || gameState.isTimerRunning}
                 className={`w-full py-4 rounded-xl font-bold transition-all ${
-                  gameState.currentStep === GameStep.INVESTMENT
-                    ? 'btn-3d bg-gradient-to-r from-emerald-500 to-teal-500 text-white'
-                    : 'bg-slate-700/50 text-slate-500 cursor-not-allowed'
+                  gameState.currentStep !== GameStep.INVESTMENT
+                    ? 'bg-slate-700/50 text-slate-500 cursor-not-allowed'
+                    : gameState.isTimerRunning
+                      ? 'bg-amber-500/20 text-amber-300 border-2 border-amber-500/50 cursor-not-allowed animate-pulse'
+                      : 'btn-3d bg-gradient-to-r from-emerald-500 to-teal-500 text-white'
                 }`}
               >
-                🚀 투자 시작
+                {gameState.isTimerRunning ? '⏳ 투자 결정중...' : '🚀 투자 시작'}
               </button>
 
               {/* 타이머 프로그레스 */}
@@ -1427,6 +1429,18 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               >
                 {gameState.revealedResults ? '📊 결과 다시보기' : '📊 결과발표'}
               </button>
+
+              {/* 다음 라운드 버튼 - 결과 공개 후에만 표시 */}
+              {gameState.revealedResults && gameState.currentStep === GameStep.RESULT && (
+                <button
+                  onClick={autoSellAndNextRound}
+                  className="w-full py-4 rounded-xl font-bold transition-all btn-3d bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-500 text-white animate-pulse-glow"
+                >
+                  {gameState.currentRound >= gameState.maxRounds
+                    ? '🏆 게임 종료 및 최종 결과 확인'
+                    : `🚀 Round ${gameState.currentRound + 1} 시작하기`}
+                </button>
+              )}
             </div>
           </div>
         </div>
