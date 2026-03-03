@@ -840,8 +840,8 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
             <p className="text-sm text-slate-400 mb-6">
               {gameState.currentStep === GameStep.MINI_GAME && '미니게임을 통해 정보 구매권을 획득할 수 있습니다.'}
               {gameState.currentStep === GameStep.INFO_PURCHASE && '획득한 정보 구매권을 통해 원하는 정보를 구매할 수 있습니다.'}
-              {gameState.currentStep === GameStep.INFO_NEGOTIATION && '가진 정보를 가지고 타 팀과 자유롭게 협상할 수 있습니다.'}
-              {gameState.currentStep === GameStep.INVESTMENT && '팀 별로 의사결정을 통하여 최종 투자를 진행합니다.'}
+              {gameState.currentStep === GameStep.INFO_NEGOTIATION && '획득한 정보를 바탕으로 다른 팀과 협상을 시작할 수 있습니다. 지금 즉시 협상 장소로 이동해주세요. 모든 정보를 오픈할지, 아니면 전략적으로 숨길지는 스스로 결정하시기 바랍니다.'}
+              {gameState.currentStep === GameStep.INVESTMENT && '타 팀과 주고 받은 정보를 바탕으로 팀원들과 논의해 주세요. 최종 투자 방향이 정해졌다면, 장마감 전에 하단의 [TRADE] 탭을 클릭하여 매수를 진행해 주시기 바랍니다.'}
               {gameState.currentStep === GameStep.RESULT && '투자를 통한 결과를 공개합니다.'}
             </p>
             <button
