@@ -1429,6 +1429,18 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               >
                 {gameState.revealedResults ? '📊 결과 다시보기' : '📊 결과발표'}
               </button>
+
+              {/* 다음 라운드 버튼 - 결과 공개 후에만 표시 */}
+              {gameState.revealedResults && gameState.currentStep === GameStep.RESULT && (
+                <button
+                  onClick={autoSellAndNextRound}
+                  className="w-full py-4 rounded-xl font-bold transition-all btn-3d bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-500 text-white animate-pulse-glow"
+                >
+                  {gameState.currentRound >= gameState.maxRounds
+                    ? '🏆 게임 종료 및 최종 결과 확인'
+                    : `🚀 Round ${gameState.currentRound + 1} 시작하기`}
+                </button>
+              )}
             </div>
           </div>
         </div>
