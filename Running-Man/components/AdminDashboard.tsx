@@ -540,13 +540,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     });
   };
 
-  // 결과 발표 (사용자에게 공개) - 이미 공개된 경우 주식현황판 표시
+  // 결과 발표 (사용자에게 공개) - 이미 공개된 경우 결과 모달 표시
   const revealResults = async () => {
     if (!gameState) return;
 
-    // 이미 결과가 공개된 경우 주식현황판 열기
+    // 이미 결과가 공개된 경우 결과 모달 열기
     if (gameState.revealedResults) {
-      setShowInvestmentTable(true);
+      setShowResultModal(true);
       return;
     }
 
