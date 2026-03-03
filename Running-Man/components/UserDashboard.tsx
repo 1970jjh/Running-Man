@@ -142,11 +142,11 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
             </div>
           </div>
 
-          {/* 자산 현황 */}
+          {/* 자산 현황 - 투자 단계에서는 항상 표시 */}
           <div className="grid grid-cols-3 gap-2">
             <div className="p-2 md:p-3 rounded-lg bg-slate-700/30 border border-slate-600/30">
               <p className="text-[9px] md:text-[10px] text-slate-400 uppercase font-bold mb-1">총 자산</p>
-              {gameState.isPortfolioLocked ? (
+              {gameState.isPortfolioLocked && gameState.currentStep !== GameStep.INVESTMENT ? (
                 <p className="text-sm md:text-lg font-black text-slate-500 font-display">🔒</p>
               ) : (
                 <p className="text-sm md:text-lg font-black text-white font-display truncate">{totalAssets.toLocaleString()}</p>
@@ -154,7 +154,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
             </div>
             <div className="p-2 md:p-3 rounded-lg bg-slate-700/30 border border-slate-600/30">
               <p className="text-[9px] md:text-[10px] text-slate-400 uppercase font-bold mb-1">현금</p>
-              {gameState.isPortfolioLocked ? (
+              {gameState.isPortfolioLocked && gameState.currentStep !== GameStep.INVESTMENT ? (
                 <p className="text-sm md:text-lg font-black text-slate-500 font-display">🔒</p>
               ) : (
                 <p className="text-sm md:text-lg font-black text-emerald-400 font-display truncate">{myTeam.currentCash.toLocaleString()}</p>
@@ -162,7 +162,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
             </div>
             <div className="p-2 md:p-3 rounded-lg bg-slate-700/30 border border-slate-600/30">
               <p className="text-[9px] md:text-[10px] text-slate-400 uppercase font-bold mb-1">수익률</p>
-              {gameState.isPortfolioLocked ? (
+              {gameState.isPortfolioLocked && gameState.currentStep !== GameStep.INVESTMENT ? (
                 <p className="text-sm md:text-lg font-black text-slate-500 font-display">🔒</p>
               ) : (
                 <p className={`text-sm md:text-lg font-black font-display ${profitRate >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
