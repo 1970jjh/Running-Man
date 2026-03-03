@@ -2529,7 +2529,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               {/* 헤더 */}
               <div className="flex justify-between items-center mb-8">
                 <h2 className="text-4xl font-black text-white flex items-center gap-3">
-                  🏆 {selectedTableRound}R 팀별 총 자산 순위
+                  📊 {selectedTableRound}R 팀별 총 자산 현황
                 </h2>
                 <button
                   onClick={() => setShowRankingGraph(false)}
@@ -2568,24 +2568,29 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                         color: teamColors[gameState.teams.indexOf(team) % teamColors.length]
                       };
                     })
-                    // 총자산 기준 정렬 (내림차순)
-                    .sort((a, b) => b.totalAssets - a.totalAssets);
+                    // 팀 번호 순서로 정렬 (1팀, 2팀, 3팀...)
+                    .sort((a, b) => a.team.number - b.team.number);
+
+                  // 순위 계산을 위해 총자산 기준 정렬된 배열 생성
+                  const rankedTeams = [...teamAssets].sort((a, b) => b.totalAssets - a.totalAssets);
+                  const getRank = (teamId: string) => rankedTeams.findIndex(t => t.team.id === teamId) + 1;
 
                   const maxValue = Math.max(...teamAssets.map(t => t.totalAssets), 1);
 
-                  return teamAssets.map(({ team, totalAssets, profitRate, color }, index) => {
+                  return teamAssets.map(({ team, totalAssets, profitRate, color }) => {
                     const barHeight = Math.max(10, (totalAssets / maxValue) * 100);
+                    const rank = getRank(team.id);
 
                     return (
                       <div key={team.id} className="flex flex-col items-center" style={{ width: '140px' }}>
                         {/* 순위 */}
                         <div className={`mb-2 w-12 h-12 rounded-full flex items-center justify-center font-black text-2xl ${
-                          index === 0 ? 'bg-amber-500 text-white' :
-                          index === 1 ? 'bg-slate-400 text-white' :
-                          index === 2 ? 'bg-amber-700 text-white' :
+                          rank === 1 ? 'bg-amber-500 text-white' :
+                          rank === 2 ? 'bg-slate-400 text-white' :
+                          rank === 3 ? 'bg-amber-700 text-white' :
                           'bg-slate-600 text-slate-300'
                         }`}>
-                          {index + 1}
+                          {rank}위
                         </div>
 
                         {/* 총자산 & 수익률 */}
