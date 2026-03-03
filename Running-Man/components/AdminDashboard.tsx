@@ -71,6 +71,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   // 주가 정보 이미지 모달 상태
   const [showStockPriceImage, setShowStockPriceImage] = useState(false);
 
+  // 팀 관리 모달 상태
+  const [showTeamManagement, setShowTeamManagement] = useState(false);
+
   // 팀 이름 수정 상태
   const [editingTeamId, setEditingTeamId] = useState<string | null>(null);
   const [editingTeamName, setEditingTeamName] = useState('');
@@ -1220,6 +1223,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                 >
                   📈 주가 정보
                 </button>
+                <button
+                  onClick={() => setShowTeamManagement(true)}
+                  className="bg-emerald-500/20 text-emerald-300 px-3 py-1 rounded-full text-xs font-bold border border-emerald-500/30 hover:bg-emerald-500/30 transition-colors"
+                >
+                  ⚙️ 팀 수정
+                </button>
               </div>
             </div>
 
@@ -2350,6 +2359,157 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                 className="btn-3d w-full mt-6 bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-5 rounded-xl font-black text-2xl"
               >
                 닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 팀 관리 모달 */}
+      {showTeamManagement && gameState && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+          <div className="iso-card bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-auto border border-emerald-500/50">
+            <div className="p-6">
+              {/* 헤더 */}
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-black text-white flex items-center gap-2">
+                  ⚙️ 팀 관리
+                </h2>
+                <button
+                  onClick={() => setShowTeamManagement(false)}
+                  className="w-10 h-10 rounded-lg bg-slate-700 hover:bg-slate-600 flex items-center justify-center text-white text-xl transition-colors"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* 팀 수 조절 */}
+              <div className="mb-6 p-4 rounded-xl bg-slate-700/30 border border-slate-600/50">
+                <h3 className="text-lg font-bold text-white mb-3">팀 수 조절</h3>
+                <div className="flex items-center gap-4">
+                  <button
+                    onClick={async () => {
+                      if (gameState.teams.length <= 2) return;
+                      const confirmed = window.confirm(`마지막 팀(${gameState.teams[gameState.teams.length - 1].teamName})을 삭제하시겠습니까?`);
+                      if (!confirmed) return;
+                      await updateGameState((current) => ({
+                        ...current,
+                        totalTeams: current.totalTeams - 1,
+                        teams: current.teams.slice(0, -1)
+                      }));
+                    }}
+                    disabled={gameState.teams.length <= 2}
+                    className="w-12 h-12 rounded-lg bg-rose-600 hover:bg-rose-500 disabled:bg-slate-600 disabled:cursor-not-allowed text-white text-2xl font-bold transition-colors"
+                  >
+                    −
+                  </button>
+                  <div className="flex-1 text-center">
+                    <span className="text-4xl font-black text-white">{gameState.teams.length}</span>
+                    <span className="text-slate-400 ml-2">팀</span>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      if (gameState.teams.length >= 10) return;
+                      const newTeamNumber = gameState.teams.length + 1;
+                      const newTeam: Team = {
+                        id: `team-${newTeamNumber}`,
+                        number: newTeamNumber,
+                        teamName: `Team ${newTeamNumber}`,
+                        leaderName: '',
+                        members: [],
+                        currentCash: INITIAL_SEED_MONEY,
+                        portfolio: {},
+                        unlockedCards: [],
+                        grantedInfoCount: 0,
+                        purchasedInfoCountPerRound: {},
+                        transactionHistory: [],
+                        roundResults: []
+                      };
+                      await updateGameState((current) => ({
+                        ...current,
+                        totalTeams: current.totalTeams + 1,
+                        teams: [...current.teams, newTeam]
+                      }));
+                    }}
+                    disabled={gameState.teams.length >= 10}
+                    className="w-12 h-12 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-600 disabled:cursor-not-allowed text-white text-2xl font-bold transition-colors"
+                  >
+                    +
+                  </button>
+                </div>
+                <p className="text-xs text-slate-400 mt-2 text-center">최소 2팀 ~ 최대 10팀</p>
+              </div>
+
+              {/* 팀 이름 수정 */}
+              <div className="mb-6">
+                <h3 className="text-lg font-bold text-white mb-3">팀 이름 수정</h3>
+                <div className="space-y-2">
+                  {gameState.teams.map((team, idx) => (
+                    <div key={team.id} className="flex items-center gap-3 p-3 rounded-xl bg-slate-700/30 border border-slate-600/30">
+                      <div className={`w-10 h-10 rounded-lg ${teamColors[idx % teamColors.length]} flex items-center justify-center text-white font-bold flex-shrink-0`}>
+                        {team.number}
+                      </div>
+                      {editingTeamId === team.id ? (
+                        <>
+                          <input
+                            type="text"
+                            value={editingTeamName}
+                            onChange={e => setEditingTeamName(e.target.value)}
+                            onKeyDown={e => {
+                              if (e.key === 'Enter') {
+                                saveTeamName(team.id);
+                                setEditingTeamId(null);
+                              }
+                              if (e.key === 'Escape') setEditingTeamId(null);
+                            }}
+                            autoFocus
+                            className="flex-1 px-3 py-2 rounded-lg bg-slate-600/50 border border-indigo-500/50 text-white font-bold outline-none focus:border-indigo-400"
+                            placeholder="팀 이름 입력"
+                          />
+                          <button
+                            onClick={() => {
+                              saveTeamName(team.id);
+                              setEditingTeamId(null);
+                            }}
+                            className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-500"
+                          >
+                            저장
+                          </button>
+                          <button
+                            onClick={() => setEditingTeamId(null)}
+                            className="px-4 py-2 rounded-lg bg-slate-600 text-slate-300 text-sm font-bold hover:bg-slate-500"
+                          >
+                            취소
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <span className="flex-1 text-white font-bold">{team.teamName}</span>
+                          <span className="text-xs text-slate-500">
+                            {team.members.length > 0 ? `${team.members.length}명` : '멤버 없음'}
+                          </span>
+                          <button
+                            onClick={() => {
+                              setEditingTeamId(team.id);
+                              setEditingTeamName(team.teamName);
+                            }}
+                            className="px-4 py-2 rounded-lg bg-slate-600 text-slate-300 text-sm font-bold hover:bg-slate-500"
+                          >
+                            수정
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* 닫기 버튼 */}
+              <button
+                onClick={() => setShowTeamManagement(false)}
+                className="btn-3d w-full bg-gradient-to-r from-emerald-600 to-teal-600 text-white py-4 rounded-xl font-bold text-lg"
+              >
+                완료
               </button>
             </div>
           </div>
