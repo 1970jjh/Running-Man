@@ -51,6 +51,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   const [selectedTableRound, setSelectedTableRound] = useState<number>(1);
   const [revealedTeams, setRevealedTeams] = useState<Set<string>>(new Set()); // 결과 공개된 팀들
   const [isPriceRevealed, setIsPriceRevealed] = useState(false); // 현재 주가 공개 여부
+  const [showRankingGraph, setShowRankingGraph] = useState(false); // 순위 그래프 팝업
 
   // 팀별 색상 (랜덤 배정용)
   const teamColors = [
@@ -1937,6 +1938,19 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                   ))}
                 </div>
 
+                {/* 그래프 순위 확인 버튼 */}
+                <button
+                  onClick={() => setShowRankingGraph(true)}
+                  disabled={!isPriceRevealed || revealedTeams.size === 0}
+                  className={`ml-auto px-6 py-3 rounded-xl font-black text-xl transition-all ${
+                    isPriceRevealed && revealedTeams.size > 0
+                      ? 'bg-purple-600 text-white border-3 border-purple-400 hover:bg-purple-500'
+                      : 'bg-slate-600 text-slate-400 border-3 border-slate-500 cursor-not-allowed'
+                  }`}
+                >
+                  📊 그래프 순위 확인
+                </button>
+
                 {/* 현재 주가 확인 버튼 */}
                 <button
                   onClick={async () => {
@@ -1947,7 +1961,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                     }
                     setIsPriceRevealed(!isPriceRevealed);
                   }}
-                  className={`ml-auto px-6 py-3 rounded-xl font-black text-xl transition-all ${
+                  className={`px-6 py-3 rounded-xl font-black text-xl transition-all ${
                     isPriceRevealed
                       ? 'bg-amber-600 text-white border-3 border-amber-400'
                       : 'bg-rose-600 text-white border-3 border-rose-400 animate-pulse'
@@ -2329,88 +2343,123 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                 </table>
               </div>
 
-              {/* 팀별 총자산 세로 막대 그래프 (현재주가 공개 후에만 표시) */}
-              {revealedTeams.size > 0 && isPriceRevealed && (
-                <div className="mt-6 p-6 rounded-xl bg-slate-700/30 border border-slate-600/50">
-                  <h3 className="text-2xl font-black text-white mb-6">📊 {selectedTableRound}R 팀별 수익 현황</h3>
-                  <div className="flex items-end justify-center gap-6" style={{ height: '320px' }}>
-                    {(() => {
-                      // 공개된 팀들의 해당 라운드 수익 계산
-                      const teamAssets = gameState.teams
-                        .filter(team => revealedTeams.has(team.id))
-                        .map((team) => {
-                          // 해당 라운드의 매수 내역에서 수익 계산
-                          const txHistory = team.transactionHistory || [];
-                          const roundBuys = txHistory.filter(tx => Number(tx.round) === selectedTableRound && tx.type === 'BUY');
-
-                          let investedValue = 0;  // 매수 금액
-                          let currentValue = 0;   // 현재 가치
-
-                          roundBuys.forEach(tx => {
-                            const stock = gameState.stocks.find(s => s.id === tx.stockId);
-                            if (stock) {
-                              const buyPrice = stock.prices[selectedTableRound - 1];
-                              const nextPrice = stock.prices[selectedTableRound] || buyPrice;
-                              investedValue += Number(tx.quantity) * buyPrice;
-                              currentValue += Number(tx.quantity) * nextPrice;
-                            }
-                          });
-
-                          const profit = currentValue - investedValue;
-                          const profitRate = investedValue > 0 ? (profit / investedValue) * 100 : 0;
-
-                          return {
-                            team,
-                            profit,
-                            profitRate,
-                            currentValue,
-                            color: teamColors[gameState.teams.indexOf(team) % teamColors.length]
-                          };
-                        });
-
-                      const maxAbsValue = Math.max(...teamAssets.map(t => Math.abs(t.currentValue)), INITIAL_SEED_MONEY * 0.5);
-
-                      return teamAssets.map(({ team, profit, profitRate, currentValue, color }) => {
-                        const barHeight = Math.min(90, (Math.abs(currentValue) / maxAbsValue) * 80);
-
-                        return (
-                          <div key={team.id} className="flex flex-col items-center gap-2" style={{ width: '120px' }}>
-                            {/* 수익률 */}
-                            <div className={`text-xl font-black ${profitRate >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                              {profitRate >= 0 ? '+' : ''}{profitRate.toFixed(1)}%
-                            </div>
-                            {/* 수익금 */}
-                            <div className={`text-lg font-bold ${profit >= 0 ? 'text-emerald-300' : 'text-rose-300'}`}>
-                              {profit >= 0 ? '+' : ''}{formatKoreanMoney(Math.abs(profit))}
-                            </div>
-                            {/* 세로 막대 */}
-                            <div className="flex-1 w-full flex flex-col justify-end items-center" style={{ height: '180px' }}>
-                              <div
-                                className={`w-16 ${color} rounded-t-lg transition-all duration-500 flex items-end justify-center pb-2`}
-                                style={{ height: `${barHeight}%`, minHeight: '40px' }}
-                              >
-                                <span className="text-white font-bold text-sm drop-shadow-lg transform -rotate-90 whitespace-nowrap">
-                                  {formatKoreanMoney(currentValue)}
-                                </span>
-                              </div>
-                            </div>
-                            {/* 팀 이름 */}
-                            <div className="text-center mt-2">
-                              <span className={`text-lg font-black ${color.replace('bg-', 'text-').replace('-500', '-400')}`}>
-                                {team.teamName}
-                              </span>
-                            </div>
-                          </div>
-                        );
-                      });
-                    })()}
-                  </div>
-                </div>
-              )}
+              {/* 하단 그래프는 제거됨 - 그래프 순위 확인 버튼으로 팝업에서 확인 */}
 
               <button
                 onClick={() => setShowInvestmentTable(false)}
                 className="btn-3d w-full mt-6 bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-5 rounded-xl font-black text-2xl"
+              >
+                닫기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 그래프 순위 확인 팝업 */}
+      {showRankingGraph && gameState && (
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+          <div className="iso-card bg-gradient-to-br from-slate-800 to-slate-900 rounded-3xl w-full max-w-5xl max-h-[90vh] overflow-auto border-4 border-purple-500/50">
+            <div className="p-8">
+              {/* 헤더 */}
+              <div className="flex justify-between items-center mb-8">
+                <h2 className="text-4xl font-black text-white flex items-center gap-3">
+                  🏆 {selectedTableRound}R 팀별 수익 순위
+                </h2>
+                <button
+                  onClick={() => setShowRankingGraph(false)}
+                  className="w-14 h-14 rounded-xl bg-slate-700 hover:bg-slate-600 flex items-center justify-center text-white text-3xl transition-colors"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* 세로 막대 그래프 */}
+              <div className="flex items-end justify-center gap-8 pb-4" style={{ minHeight: '500px' }}>
+                {(() => {
+                  // 공개된 팀들의 해당 라운드 수익 계산
+                  const teamAssets = gameState.teams
+                    .filter(team => revealedTeams.has(team.id))
+                    .map((team) => {
+                      const txHistory = team.transactionHistory || [];
+                      const roundBuys = txHistory.filter(tx => Number(tx.round) === selectedTableRound && tx.type === 'BUY');
+
+                      let investedValue = 0;
+                      let currentValue = 0;
+
+                      roundBuys.forEach(tx => {
+                        const stock = gameState.stocks.find(s => s.id === tx.stockId);
+                        if (stock) {
+                          const buyPrice = stock.prices[selectedTableRound - 1];
+                          const nextPrice = stock.prices[selectedTableRound] || buyPrice;
+                          investedValue += Number(tx.quantity) * buyPrice;
+                          currentValue += Number(tx.quantity) * nextPrice;
+                        }
+                      });
+
+                      const profitRate = investedValue > 0 ? ((currentValue - investedValue) / investedValue) * 100 : 0;
+
+                      return {
+                        team,
+                        currentValue,
+                        profitRate,
+                        color: teamColors[gameState.teams.indexOf(team) % teamColors.length]
+                      };
+                    })
+                    // 총자산 기준 정렬 (내림차순)
+                    .sort((a, b) => b.currentValue - a.currentValue);
+
+                  const maxValue = Math.max(...teamAssets.map(t => t.currentValue), 1);
+
+                  return teamAssets.map(({ team, currentValue, profitRate, color }, index) => {
+                    const barHeight = Math.max(10, (currentValue / maxValue) * 100);
+
+                    return (
+                      <div key={team.id} className="flex flex-col items-center" style={{ width: '140px' }}>
+                        {/* 순위 */}
+                        <div className={`mb-2 w-12 h-12 rounded-full flex items-center justify-center font-black text-2xl ${
+                          index === 0 ? 'bg-amber-500 text-white' :
+                          index === 1 ? 'bg-slate-400 text-white' :
+                          index === 2 ? 'bg-amber-700 text-white' :
+                          'bg-slate-600 text-slate-300'
+                        }`}>
+                          {index + 1}
+                        </div>
+
+                        {/* 총자산 & 수익률 */}
+                        <div className="text-center mb-4">
+                          <div className="text-white font-black text-2xl">
+                            {formatKoreanMoney(currentValue)}
+                          </div>
+                          <div className={`text-xl font-bold ${profitRate >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                            {profitRate >= 0 ? '+' : ''}{profitRate.toFixed(1)}%
+                          </div>
+                        </div>
+
+                        {/* 세로 막대 */}
+                        <div className="w-full flex flex-col justify-end items-center" style={{ height: '280px' }}>
+                          <div
+                            className={`w-20 ${color} rounded-t-xl transition-all duration-700 shadow-lg`}
+                            style={{ height: `${barHeight}%`, minHeight: '30px' }}
+                          />
+                        </div>
+
+                        {/* 팀 이름 */}
+                        <div className="text-center mt-4">
+                          <span className={`text-2xl font-black ${color.replace('bg-', 'text-').replace('-500', '-400')}`}>
+                            {team.teamName}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+
+              {/* 닫기 버튼 */}
+              <button
+                onClick={() => setShowRankingGraph(false)}
+                className="btn-3d w-full mt-8 bg-gradient-to-r from-purple-600 to-indigo-600 text-white py-5 rounded-xl font-black text-2xl"
               >
                 닫기
               </button>
