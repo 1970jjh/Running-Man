@@ -777,3 +777,25 @@ html.light .timer-display-bg {
 html.light .timer-display-bg.border-slate-300 {
   border-color: #cbd5e1 !important;
 }
+
+/* 라이트 모드 - 하단 네비게이션 바 (다크 유지, 흰색 아이콘/텍스트) */
+html.light nav.fixed.bottom-0 {
+  background: rgba(15, 23, 42, 0.95) !important;
+  border-color: rgba(51, 65, 85, 0.5) !important;
+}
+
+html.light nav.fixed.bottom-0 button {
+  color: rgba(148, 163, 184, 1) !important;
+}
+
+html.light nav.fixed.bottom-0 button.text-indigo-400 {
+  color: #818cf8 !important;
+}
+
+html.light nav.fixed.bottom-0 button svg {
+  stroke: currentColor !important;
+}
+
+html.light nav.fixed.bottom-0 button span {
+  color: inherit !important;
+}

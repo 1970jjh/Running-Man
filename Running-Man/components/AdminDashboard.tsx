@@ -13,7 +13,7 @@ import {
   getFirebaseError
 } from '../firebase';
 import analyzeTeamPerformance, { AnalysisReport } from '../gemini';
-import { playTimerEndSound, resumeAudioContext } from '../utils/sounds';
+import { playTimerEndSound, playFinalResultSound, resumeAudioContext } from '../utils/sounds';
 
 interface AdminDashboardProps {
   onLogout: () => void;
@@ -1931,7 +1931,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
 
                 {/* 현재 주가 확인 버튼 */}
                 <button
-                  onClick={() => setIsPriceRevealed(!isPriceRevealed)}
+                  onClick={async () => {
+                    if (!isPriceRevealed) {
+                      // 주가 공개 시 팡파레 사운드 재생
+                      await resumeAudioContext();
+                      playFinalResultSound();
+                    }
+                    setIsPriceRevealed(!isPriceRevealed);
+                  }}
                   className={`ml-auto px-6 py-3 rounded-xl font-black text-xl transition-all ${
                     isPriceRevealed
                       ? 'bg-amber-600 text-white border-3 border-amber-400'
@@ -1946,6 +1953,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                   onClick={() => {
                     if (revealedTeams.size === gameState.teams.length) {
                       setRevealedTeams(new Set());
+                      setIsPriceRevealed(false); // 주가 공개도 초기화
                     } else {
                       setRevealedTeams(new Set(gameState.teams.map(t => t.id)));
                     }
@@ -1965,8 +1973,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                 <p className="text-xl font-black text-white mb-3">색상 안내:</p>
                 <div className="flex flex-wrap gap-6 text-lg">
                   <span className="flex items-center gap-2">
+                    <span className="w-8 h-8 bg-emerald-500/50 border-3 border-emerald-400 rounded flex items-center justify-center text-lg">📋</span>
+                    <span className="text-white font-bold">정보 보유 (공개 전 표시)</span>
+                  </span>
+                  <span className="flex items-center gap-2">
                     <span className="w-8 h-8 bg-emerald-500/50 border-3 border-emerald-400 rounded"></span>
-                    <span className="text-white font-bold">정보 구매 & 투자 일치</span>
+                    <span className="text-white font-bold">정보 구매 & 투자</span>
                   </span>
                   <span className="flex items-center gap-2">
                     <span className="w-8 h-8 bg-amber-500/50 border-3 border-amber-400 rounded"></span>
@@ -2144,12 +2156,15 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                               })
                             );
 
-                            // 색상 결정
+                            // 색상 결정 - 정보 소유 여부는 항상 표시 (협상용)
                             let cellBgClass = '';
-                            if (isTeamRevealed && qty > 0) {
-                              if (teamHasInfo) {
-                                cellBgClass = 'bg-emerald-500/30 border-l-4 border-emerald-400';
-                              } else if (otherTeamHasInfo) {
+                            // 정보 소유 색상은 공개 전/후 모두 표시 (협상 시 볼 수 있도록)
+                            if (teamHasInfo) {
+                              cellBgClass = 'bg-emerald-500/30 border-l-4 border-emerald-400';
+                            }
+                            // 팀 공개 후 투자 정보에 따른 추가 색상
+                            if (isTeamRevealed && qty > 0 && !teamHasInfo) {
+                              if (otherTeamHasInfo) {
                                 cellBgClass = 'bg-pink-500/30 border-l-4 border-pink-400';
                               } else {
                                 cellBgClass = 'bg-amber-500/30 border-l-4 border-amber-400';
@@ -2159,7 +2174,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                             return (
                               <td key={team.id} className={`px-4 py-4 text-center border-b border-slate-600/30 ${cellBgClass}`}>
                                 {!isTeamRevealed ? (
-                                  <span className="text-slate-600 font-black text-3xl">?</span>
+                                  // 공개 전: 정보 소유 여부만 표시
+                                  teamHasInfo ? (
+                                    <span className="text-emerald-400 font-black text-2xl">📋</span>
+                                  ) : (
+                                    <span className="text-slate-600 font-black text-3xl">?</span>
+                                  )
                                 ) : qty > 0 ? (
                                   <div>
                                     <span className="text-white font-black text-2xl">{qty}주</span>
