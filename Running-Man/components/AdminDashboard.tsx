@@ -2012,11 +2012,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                     <span className="text-white font-bold">정보 구매 & 투자</span>
                   </span>
                   <span className="flex items-center gap-2">
-                    <span className="w-8 h-8 bg-amber-500/50 border-3 border-amber-400 rounded"></span>
+                    <span className="w-8 h-8 bg-pink-500/50 border-3 border-pink-400 rounded"></span>
                     <span className="text-white font-bold">정보 없이 투자</span>
                   </span>
                   <span className="flex items-center gap-2">
-                    <span className="w-8 h-8 bg-pink-500/50 border-3 border-pink-400 rounded"></span>
+                    <span className="w-8 h-8 bg-amber-500/50 border-3 border-amber-400 rounded"></span>
                     <span className="text-white font-bold">타팀 정보로 투자</span>
                   </span>
                   <span className="flex items-center gap-3">
@@ -2196,9 +2196,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                             // 팀 공개 후 투자 정보에 따른 추가 색상
                             if (isTeamRevealed && qty > 0 && !teamHasInfo) {
                               if (otherTeamHasInfo) {
-                                cellBgClass = 'bg-pink-500/30 border-l-4 border-pink-400';
-                              } else {
                                 cellBgClass = 'bg-amber-500/30 border-l-4 border-amber-400';
+                              } else {
+                                cellBgClass = 'bg-pink-500/30 border-l-4 border-pink-400';
                               }
                             }
 
