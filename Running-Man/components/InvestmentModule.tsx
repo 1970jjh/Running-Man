@@ -730,15 +730,28 @@ const InvestmentModule: React.FC<InvestmentModuleProps> = ({ gameState, myTeam, 
                   </thead>
                   <tbody>
                     {gameState.stocks.map((stock, idx) => {
-                      const currentPrice = stock.prices[selectedTableRound - 1];
-                      const prevPrice = selectedTableRound > 1 ? stock.prices[selectedTableRound - 2] : stock.prices[0];
-                      const priceChange = selectedTableRound > 1 ? ((currentPrice - prevPrice) / prevPrice) * 100 : 0;
+                      // 과거 라운드: 결과 가격 표시, 현재 라운드: 시작 가격 표시 (결과 공개 시 결과 가격)
+                      const isPastRound = selectedTableRound < gameState.currentRound;
+                      const isResultRevealed = isPastRound || gameState.revealedResults;
 
-                      // 내 팀의 보유 수량
+                      // 시작가 (이전가): 해당 라운드 시작 시점 가격
+                      const startPrice = stock.prices[selectedTableRound - 1];
+                      // 현재가: 과거 라운드면 결과 가격, 현재 라운드면 시작 가격 (결과 공개 전)
+                      const currentPrice = isResultRevealed
+                        ? stock.prices[selectedTableRound] || startPrice
+                        : startPrice;
+                      // 등락률 계산
+                      const priceChange = isResultRevealed && startPrice > 0
+                        ? ((currentPrice - startPrice) / startPrice) * 100
+                        : 0;
+
+                      // 내 팀의 보유 수량: 현재 라운드만 portfolio에서, 과거 라운드는 매수 내역에서
                       let myQty = 0;
                       if (selectedTableRound === gameState.currentRound) {
+                        // 현재 라운드: 현재 포트폴리오
                         myQty = myTeam.portfolio[stock.id] || 0;
                       } else {
+                        // 과거 라운드: 해당 라운드의 매수 내역 (히스토리용, 실제로는 자동 매도됨)
                         myQty = myTeam.transactionHistory?.filter(tx =>
                           tx.round === selectedTableRound && tx.stockId === stock.id && tx.type === 'BUY'
                         ).reduce((sum, tx) => sum + tx.quantity, 0) || 0;
@@ -772,7 +785,7 @@ const InvestmentModule: React.FC<InvestmentModuleProps> = ({ gameState, myTeam, 
                           </td>
                           <td className="px-4 py-3 text-right border-b border-slate-600/30">
                             <span className="text-white font-semibold text-base">
-                              {prevPrice.toLocaleString()}
+                              {startPrice.toLocaleString()}
                             </span>
                           </td>
                           <td className="px-4 py-3 text-right border-b border-slate-600/30">
@@ -781,7 +794,7 @@ const InvestmentModule: React.FC<InvestmentModuleProps> = ({ gameState, myTeam, 
                             </span>
                           </td>
                           <td className="px-4 py-3 text-center border-b border-slate-600/30">
-                            {selectedTableRound === 1 ? (
+                            {!isResultRevealed ? (
                               <span className="text-slate-500 font-bold text-base">-</span>
                             ) : (
                               <span className={`font-black text-base ${priceChange >= 0 ? 'text-red-500' : 'text-blue-600'}`}>
@@ -844,6 +857,121 @@ const InvestmentModule: React.FC<InvestmentModuleProps> = ({ gameState, myTeam, 
                         </tr>
                       );
                     })}
+                    {/* 요약 행: 주식합계, 보유현금, 총자산 */}
+                    {(() => {
+                      const isPastRound = selectedTableRound < gameState.currentRound;
+                      const isResultRevealed = isPastRound || gameState.revealedResults;
+
+                      // 내 팀의 요약 계산
+                      const getTeamSummary = (team: Team) => {
+                        if (selectedTableRound === gameState.currentRound) {
+                          // 현재 라운드: 현재 포트폴리오 기준
+                          const stockValue = Object.entries(team.portfolio).reduce((sum, [stockId, qty]) => {
+                            const stock = gameState.stocks.find(s => s.id === stockId);
+                            const price = stock?.prices[selectedTableRound - 1] || 0;
+                            return sum + (qty * price);
+                          }, 0);
+                          return {
+                            stockValue,
+                            cash: team.currentCash,
+                            totalAssets: team.currentCash + stockValue
+                          };
+                        } else {
+                          // 과거 라운드: roundResults에서 가져오기
+                          const roundResult = team.roundResults.find(r => r.round === selectedTableRound);
+                          if (roundResult) {
+                            return {
+                              stockValue: 0, // 자동 매도 후이므로 0
+                              cash: roundResult.totalValue, // 매도 후 현금
+                              totalAssets: roundResult.totalValue
+                            };
+                          }
+                          return { stockValue: 0, cash: INITIAL_SEED_MONEY, totalAssets: INITIAL_SEED_MONEY };
+                        }
+                      };
+
+                      const mySummary = getTeamSummary(myTeam);
+
+                      return (
+                        <>
+                          {/* 주식합계 행 */}
+                          <tr className="bg-indigo-900/30 font-bold">
+                            <td className="sticky left-0 bg-indigo-900/60 px-4 py-3 border-b border-indigo-500/30 z-10">
+                              <span className="text-indigo-300 font-black text-base">📈 주식합계</span>
+                            </td>
+                            <td colSpan={3} className="px-4 py-3 border-b border-indigo-500/30"></td>
+                            <td className="px-4 py-3 text-center border-b border-indigo-500/30">
+                              <span className="text-white font-black text-base">
+                                {(mySummary.stockValue / 10000).toFixed(0)}만원
+                              </span>
+                            </td>
+                            {isResultRevealed &&
+                              gameState.teams
+                                .filter(team => team.id !== myTeam.id)
+                                .map(team => {
+                                  const summary = getTeamSummary(team);
+                                  return (
+                                    <td key={team.id} className="px-4 py-3 text-center border-b border-indigo-500/30">
+                                      <span className="text-white font-black text-base">
+                                        {(summary.stockValue / 10000).toFixed(0)}만원
+                                      </span>
+                                    </td>
+                                  );
+                                })}
+                          </tr>
+                          {/* 보유현금 행 */}
+                          <tr className="bg-emerald-900/30 font-bold">
+                            <td className="sticky left-0 bg-emerald-900/60 px-4 py-3 border-b border-emerald-500/30 z-10">
+                              <span className="text-emerald-300 font-black text-base">💵 보유현금</span>
+                            </td>
+                            <td colSpan={3} className="px-4 py-3 border-b border-emerald-500/30"></td>
+                            <td className="px-4 py-3 text-center border-b border-emerald-500/30">
+                              <span className="text-emerald-400 font-black text-base">
+                                {(mySummary.cash / 10000).toFixed(0)}만원
+                              </span>
+                            </td>
+                            {isResultRevealed &&
+                              gameState.teams
+                                .filter(team => team.id !== myTeam.id)
+                                .map(team => {
+                                  const summary = getTeamSummary(team);
+                                  return (
+                                    <td key={team.id} className="px-4 py-3 text-center border-b border-emerald-500/30">
+                                      <span className="text-emerald-400 font-black text-base">
+                                        {(summary.cash / 10000).toFixed(0)}만원
+                                      </span>
+                                    </td>
+                                  );
+                                })}
+                          </tr>
+                          {/* 총자산 행 */}
+                          <tr className="bg-amber-900/30 font-bold">
+                            <td className="sticky left-0 bg-amber-900/60 px-4 py-3 z-10">
+                              <span className="text-amber-300 font-black text-base">🏆 총자산</span>
+                            </td>
+                            <td colSpan={3} className="px-4 py-3"></td>
+                            <td className="px-4 py-3 text-center">
+                              <span className="text-amber-400 font-black text-base">
+                                {(mySummary.totalAssets / 10000).toFixed(0)}만원
+                              </span>
+                            </td>
+                            {isResultRevealed &&
+                              gameState.teams
+                                .filter(team => team.id !== myTeam.id)
+                                .map(team => {
+                                  const summary = getTeamSummary(team);
+                                  return (
+                                    <td key={team.id} className="px-4 py-3 text-center">
+                                      <span className="text-amber-400 font-black text-base">
+                                        {(summary.totalAssets / 10000).toFixed(0)}만원
+                                      </span>
+                                    </td>
+                                  );
+                                })}
+                          </tr>
+                        </>
+                      );
+                    })()}
                   </tbody>
                 </table>
               </div>
