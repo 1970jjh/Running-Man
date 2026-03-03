@@ -432,21 +432,23 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     }));
   };
 
-  // 투자 잠금/해제
-  const toggleInvestmentLock = async () => {
+  // 투자 확정/해제 토글 (확정 시 다음 라운드 가격으로 수익률 계산 및 자동 매도)
+  const toggleInvestmentConfirm = async () => {
     if (!gameState) return;
 
-    await updateGameState((current) => ({
-      ...current,
-      isInvestmentLocked: !current.isInvestmentLocked,
-      isTimerRunning: current.isInvestmentLocked
-    }));
-  };
+    // 이미 확정된 경우 → 확정 해제 (투자 가능 상태로)
+    if (gameState.isInvestmentConfirmed) {
+      await updateGameState((current) => ({
+        ...current,
+        isInvestmentLocked: false,
+        isInvestmentConfirmed: false,
+        isPortfolioLocked: false,
+        isTimerRunning: true
+      }));
+      return;
+    }
 
-  // 투자 확정 (다음 라운드 가격으로 수익률 계산 및 자동 매도)
-  const confirmInvestment = async () => {
-    if (!gameState) return;
-
+    // 확정되지 않은 경우 → 투자 확정
     await updateGameState((current) => {
       const currentRound = current.currentRound;
       // 결과 가격 인덱스: prices[currentRound] (투자 시 prices[currentRound-1], 결과는 다음 인덱스)
@@ -538,12 +540,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     });
   };
 
-  // 결과 발표 (사용자에게 공개) - 팝업 자동 표시 안함
+  // 결과 발표 (사용자에게 공개) - 이미 공개된 경우 주식현황판 표시
   const revealResults = async () => {
     if (!gameState) return;
 
-    // 이미 결과가 공개된 경우 아무것도 하지 않음 (주식현황판으로 직접 확인)
+    // 이미 결과가 공개된 경우 주식현황판 열기
     if (gameState.revealedResults) {
+      setShowInvestmentTable(true);
       return;
     }
 
@@ -1366,18 +1369,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                 🚀 투자 시작
               </button>
 
-              {/* 투자 잠금/해제 */}
-              <button
-                onClick={toggleInvestmentLock}
-                className={`w-full py-4 rounded-xl font-bold transition-all ${
-                  gameState.isInvestmentLocked
-                    ? 'bg-rose-500/20 text-rose-300 border-2 border-rose-500/30 hover:bg-rose-500/30'
-                    : 'bg-emerald-500/20 text-emerald-300 border-2 border-emerald-500/30 hover:bg-emerald-500/30'
-                }`}
-              >
-                {gameState.isInvestmentLocked ? '🔒 투자 잠금됨 (클릭하여 열기)' : '🔓 투자 진행중 (클릭하여 잠금)'}
-              </button>
-
               {/* 타이머 프로그레스 */}
               {gameState.timerMaxSeconds > 0 && (
                 <div className="mt-4">
@@ -1394,19 +1385,19 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                 </div>
               )}
 
-              {/* 투자 확정 버튼 */}
+              {/* 투자 확정/해제 버튼 (투자 잠금 기능 통합) */}
               <button
-                onClick={confirmInvestment}
-                disabled={gameState.currentStep !== GameStep.INVESTMENT || gameState.isInvestmentConfirmed}
+                onClick={toggleInvestmentConfirm}
+                disabled={gameState.currentStep !== GameStep.INVESTMENT}
                 className={`w-full py-4 rounded-xl font-bold transition-all mt-4 ${
-                  gameState.currentStep === GameStep.INVESTMENT && !gameState.isInvestmentConfirmed
-                    ? 'btn-3d bg-gradient-to-r from-amber-500 to-orange-500 text-white'
+                  gameState.currentStep !== GameStep.INVESTMENT
+                    ? 'bg-slate-700/50 text-slate-500 cursor-not-allowed'
                     : gameState.isInvestmentConfirmed
-                      ? 'bg-emerald-500/20 text-emerald-300 border-2 border-emerald-500/30 cursor-not-allowed'
-                      : 'bg-slate-700/50 text-slate-500 cursor-not-allowed'
+                      ? 'bg-emerald-500/20 text-emerald-300 border-2 border-emerald-500/30 hover:bg-emerald-500/30'
+                      : 'btn-3d bg-gradient-to-r from-amber-500 to-orange-500 text-white'
                 }`}
               >
-                {gameState.isInvestmentConfirmed ? '✅ 투자 확정 완료' : '💎 투자 확정'}
+                {gameState.isInvestmentConfirmed ? '✅ 투자 확정 완료 (클릭하여 해제)' : '💎 투자 확정'}
               </button>
 
               {/* 주식현황판 보기 버튼 (결과발표 위에) */}
