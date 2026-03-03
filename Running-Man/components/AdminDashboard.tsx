@@ -1404,6 +1404,19 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                 {gameState.isInvestmentConfirmed ? '✅ 투자 확정 완료' : '💎 투자 확정'}
               </button>
 
+              {/* 주식현황판 보기 버튼 (결과발표 위에) */}
+              <button
+                onClick={() => setShowInvestmentTable(true)}
+                disabled={!gameState.isInvestmentConfirmed}
+                className={`w-full py-4 rounded-xl font-bold transition-all ${
+                  gameState.isInvestmentConfirmed
+                    ? 'btn-3d bg-gradient-to-r from-indigo-500 to-blue-500 text-white'
+                    : 'bg-slate-700/50 text-slate-500 cursor-not-allowed'
+                }`}
+              >
+                📊 주식현황판 보기
+              </button>
+
               {/* 결과발표 버튼 */}
               <button
                 onClick={revealResults}
@@ -1432,7 +1445,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                 onClick={() => setShowInvestmentTable(true)}
                 className="px-3 py-1.5 rounded-lg bg-indigo-500/20 text-indigo-300 text-xs font-bold hover:bg-indigo-500/30 transition-colors border border-indigo-500/30"
               >
-                📊 테이블 보기
+                📊 주식현황판
               </button>
               <span className="text-xs text-slate-500 font-normal">
                 {gameState.currentStep === GameStep.RESULT ? '✅ 투자 완료' : '실시간 업데이트'}
@@ -2081,13 +2094,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                       const displayCurrentPrice = isPriceRevealed ? nextPrice : buyPrice;
                       const priceChange = isPriceRevealed ? ((nextPrice - buyPrice) / buyPrice) * 100 : 0;
 
-                      // 해당 라운드에서 투자가 있는지
+                      // 해당 라운드에서 투자가 있는지 (transactionHistory 사용)
                       const hasAnyInvestment = gameState.teams.some(team => {
-                        if (selectedTableRound === gameState.currentRound) {
-                          const portfolio = team.portfolio || {};
-                          const qty = (typeof portfolio === 'object' && portfolio[stock.id]) ? Number(portfolio[stock.id]) : 0;
-                          return qty > 0;
-                        }
                         const txHistory = team.transactionHistory || [];
                         return txHistory.some(tx =>
                           tx.round === selectedTableRound && tx.stockId === stock.id && tx.type === 'BUY'
@@ -2126,19 +2134,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                           {gameState.teams.map(team => {
                             const isTeamRevealed = revealedTeams.has(team.id);
 
-                            // 수량 계산 - portfolio 객체 안전하게 접근
-                            let qty = 0;
-                            if (selectedTableRound === gameState.currentRound) {
-                              // portfolio가 객체인지 확인하고 안전하게 접근
-                              const portfolio = team.portfolio || {};
-                              qty = (typeof portfolio === 'object' && portfolio[stock.id]) ? Number(portfolio[stock.id]) : 0;
-                            } else {
-                              // 이전 라운드: transactionHistory에서 계산
-                              const txHistory = team.transactionHistory || [];
-                              qty = txHistory
-                                .filter(tx => tx.round === selectedTableRound && tx.stockId === stock.id && tx.type === 'BUY')
-                                .reduce((sum, tx) => sum + tx.quantity, 0);
-                            }
+                            // 수량 계산 - 모든 라운드에서 transactionHistory 사용 (해당 라운드 매수 내역)
+                            const txHistory = team.transactionHistory || [];
+                            const qty = txHistory
+                              .filter(tx => tx.round === selectedTableRound && tx.stockId === stock.id && tx.type === 'BUY')
+                              .reduce((sum, tx) => sum + tx.quantity, 0);
 
                             // 가치 계산 (주가 공개 여부에 따라)
                             const value = qty * (isPriceRevealed ? displayCurrentPrice : displayPrevPrice);
@@ -2205,32 +2205,18 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                         let totalShares = 0;
                         let buyValue = 0; // 매수금액
 
-                        if (selectedTableRound === gameState.currentRound) {
-                          const portfolio = team.portfolio || {};
-                          Object.entries(portfolio).forEach(([stockId, qty]) => {
-                            const stock = gameState.stocks.find(s => s.id === stockId);
-                            const numQty = typeof qty === 'number' ? qty : 0;
-                            if (stock && numQty > 0) {
-                              const buyPrice = stock.prices[selectedTableRound - 1];
-                              const nextPrice = stock.prices[selectedTableRound] || buyPrice;
-                              buyValue += numQty * buyPrice;
-                              totalValue += numQty * (isPriceRevealed ? nextPrice : buyPrice);
-                              totalShares += numQty;
-                            }
-                          });
-                        } else {
-                          const roundTxs = (team.transactionHistory || []).filter(tx => tx.round === selectedTableRound && tx.type === 'BUY');
-                          roundTxs.forEach(tx => {
-                            const stock = gameState.stocks.find(s => s.id === tx.stockId);
-                            if (stock) {
-                              const buyPrice = stock.prices[selectedTableRound - 1];
-                              const nextPrice = stock.prices[selectedTableRound] || buyPrice;
-                              buyValue += tx.quantity * buyPrice;
-                              totalValue += tx.quantity * (isPriceRevealed ? nextPrice : buyPrice);
-                              totalShares += tx.quantity;
-                            }
-                          });
-                        }
+                        // 모든 라운드에서 transactionHistory 사용 (해당 라운드 매수 내역)
+                        const roundTxs = (team.transactionHistory || []).filter(tx => tx.round === selectedTableRound && tx.type === 'BUY');
+                        roundTxs.forEach(tx => {
+                          const stock = gameState.stocks.find(s => s.id === tx.stockId);
+                          if (stock) {
+                            const buyPrice = stock.prices[selectedTableRound - 1];
+                            const nextPrice = stock.prices[selectedTableRound] || buyPrice;
+                            buyValue += tx.quantity * buyPrice;
+                            totalValue += tx.quantity * (isPriceRevealed ? nextPrice : buyPrice);
+                            totalShares += tx.quantity;
+                          }
+                        });
 
                         const profitLoss = totalValue - buyValue;
                         const profitRate = buyValue > 0 ? (profitLoss / buyValue) * 100 : 0;
