@@ -12,7 +12,7 @@ import {
   isFirebaseReady,
   getFirebaseError
 } from '../firebase';
-import analyzeTeamPerformance, { AnalysisReport } from '../gemini';
+import analyzeTeamPerformance, { AnalysisReport, analyzeComprehensivePerformance, ComprehensiveAnalysisReport } from '../gemini';
 import { playTimerEndSound, playFinalResultSound, resumeAudioContext } from '../utils/sounds';
 
 interface AdminDashboardProps {
@@ -45,6 +45,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   const [analysisReports, setAnalysisReports] = useState<{ [teamId: string]: AnalysisReport }>({});
   const [analyzingTeamId, setAnalyzingTeamId] = useState<string | null>(null);
   const [showAnalysisModal, setShowAnalysisModal] = useState<string | null>(null);
+
+  // 종합 분석 관련 상태
+  const [comprehensiveReport, setComprehensiveReport] = useState<ComprehensiveAnalysisReport | null>(null);
+  const [isAnalyzingComprehensive, setIsAnalyzingComprehensive] = useState(false);
+  const [showComprehensiveModal, setShowComprehensiveModal] = useState(false);
 
   // 투자 테이블 모달 상태
   const [showInvestmentTable, setShowInvestmentTable] = useState(false);
@@ -871,39 +876,33 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
       return bRate - aRate;
     });
 
-    // AI 분석 함수
-    const handleFinalAnalyze = async (team: Team) => {
-      setAnalyzingTeamId(team.id);
-      const stockPrices: { [stockId: string]: number[] } = {};
-      gameState.stocks.forEach(s => {
-        stockPrices[s.id] = s.prices;
-      });
-
-      const report = await analyzeTeamPerformance({
-        teamNumber: team.number,
-        teamName: team.teamName,
-        unlockedCards: team.unlockedCards,
-        roundResults: team.roundResults,
-        finalCash: team.currentCash,
-        portfolio: team.portfolio,
-        stockPrices,
-        maxRounds: gameState.maxRounds,
-        transactionHistory: team.transactionHistory || []
-      });
-
-      setAnalysisReports(prev => ({ ...prev, [team.id]: report }));
-      setAnalyzingTeamId(null);
+    // 대시보드로 돌아가기 (게임 상태 유지하면서 라운드 보기)
+    const goBackToDashboard = async () => {
+      await updateGameState((current) => ({
+        ...current,
+        currentStatus: GameStatus.ROUND_4, // 마지막 라운드 상태로 변경
+        currentStep: GameStep.RESULT,
+        revealedResults: true
+      }));
     };
 
     return (
       <div className="min-h-screen p-6 iso-grid relative z-10">
         <div className="max-w-3xl mx-auto">
-          <button
-            onClick={() => setView('room-list')}
-            className="mb-6 text-slate-400 hover:text-white transition-colors flex items-center gap-2"
-          >
-            ← 방 목록으로
-          </button>
+          <div className="flex items-center justify-between mb-6">
+            <button
+              onClick={() => setView('room-list')}
+              className="text-slate-400 hover:text-white transition-colors flex items-center gap-2"
+            >
+              ← 방 목록으로
+            </button>
+            <button
+              onClick={goBackToDashboard}
+              className="px-4 py-2 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-500 transition-colors flex items-center gap-2"
+            >
+              📊 대시보드로 돌아가기
+            </button>
+          </div>
 
           <div className="iso-card bg-gradient-to-br from-slate-800/90 to-slate-900/95 p-10 rounded-3xl border border-slate-700/50">
             <div className="text-center mb-10">
@@ -917,8 +916,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
             <div className="space-y-4">
               {sortedTeams.map((team, idx) => {
                 const finalResult = team.roundResults[team.roundResults.length - 1];
-                const hasReport = !!analysisReports[team.id];
-                const isAnalyzing = analyzingTeamId === team.id;
 
                 return (
                   <div
@@ -948,153 +945,325 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                         <p className="text-sm text-slate-500">누적 수익률</p>
                       </div>
                     </div>
-
-                    {/* AI 투자 성과 분석 버튼 */}
-                    <div className="mt-4 flex justify-end">
-                      {hasReport ? (
-                        <button
-                          onClick={() => setShowAnalysisModal(team.id)}
-                          className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-sm font-bold hover:from-emerald-600 hover:to-teal-600 transition-all shadow-lg shadow-emerald-500/30"
-                        >
-                          📊 AI 투자 성과 분석 보기
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => handleFinalAnalyze(team)}
-                          disabled={isAnalyzing}
-                          className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
-                            isAnalyzing
-                              ? 'bg-slate-600/50 text-slate-400 cursor-wait'
-                              : 'bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600 shadow-lg shadow-purple-500/30'
-                          }`}
-                        >
-                          {isAnalyzing ? (
-                            <span className="flex items-center gap-2">
-                              <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                              AI 분석중...
-                            </span>
-                          ) : '🤖 AI 투자 성과 분석'}
-                        </button>
-                      )}
-                    </div>
                   </div>
                 );
               })}
             </div>
+
+            {/* AI 종합 투자 분석 버튼 */}
+            <div className="mt-8">
+              {comprehensiveReport ? (
+                <button
+                  onClick={() => setShowComprehensiveModal(true)}
+                  className="btn-3d w-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white py-4 rounded-xl font-bold text-lg hover:from-emerald-600 hover:to-teal-600 transition-all shadow-lg shadow-emerald-500/30"
+                >
+                  📊 AI 종합 투자 분석 보고서 보기
+                </button>
+              ) : (
+                <button
+                  onClick={async () => {
+                    setIsAnalyzingComprehensive(true);
+                    const stockPrices: { [stockId: string]: number[] } = {};
+                    gameState.stocks.forEach(s => {
+                      stockPrices[s.id] = s.prices;
+                    });
+
+                    const report = await analyzeComprehensivePerformance({
+                      roomName: selectedRoom.name,
+                      teams: gameState.teams.map(team => ({
+                        teamNumber: team.number,
+                        teamName: team.teamName,
+                        leaderName: team.leaderName || '',
+                        unlockedCards: team.unlockedCards,
+                        roundResults: team.roundResults,
+                        finalCash: team.currentCash,
+                        portfolio: team.portfolio,
+                        transactionHistory: team.transactionHistory || []
+                      })),
+                      stocks: gameState.stocks.map(stock => ({
+                        id: stock.id,
+                        name: stock.name,
+                        prices: stock.prices
+                      })),
+                      maxRounds: gameState.maxRounds
+                    });
+
+                    setComprehensiveReport(report);
+                    setIsAnalyzingComprehensive(false);
+                    setShowComprehensiveModal(true);
+                  }}
+                  disabled={isAnalyzingComprehensive}
+                  className={`btn-3d w-full py-4 rounded-xl font-bold text-lg transition-all ${
+                    isAnalyzingComprehensive
+                      ? 'bg-slate-600/50 text-slate-400 cursor-wait'
+                      : 'bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600 shadow-lg shadow-purple-500/30 animate-pulse-glow'
+                  }`}
+                >
+                  {isAnalyzingComprehensive ? (
+                    <span className="flex items-center justify-center gap-3">
+                      <span className="w-5 h-5 border-3 border-white border-t-transparent rounded-full animate-spin"></span>
+                      AI 종합 분석 중...
+                    </span>
+                  ) : '🤖 AI 종합 투자 분석'}
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* AI 분석 리포트 모달 */}
-        {showAnalysisModal && analysisReports[showAnalysisModal] && (
-          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
-            <div className="iso-card bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-auto border border-indigo-500/50">
-              <div className="p-6">
-                {(() => {
-                  const report = analysisReports[showAnalysisModal];
-                  const team = gameState?.teams.find(t => t.id === showAnalysisModal);
-                  return (
-                    <>
-                      <div className="flex justify-between items-center mb-6">
-                        <h2 className="text-xl font-black text-white flex items-center gap-2">
-                          📊 {team?.teamName} AI 투자 성과 분석
-                        </h2>
-                        <button
-                          onClick={() => setShowAnalysisModal(null)}
-                          className="p-2 rounded-lg bg-slate-700/50 text-slate-400 hover:text-white transition-colors"
-                        >
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/>
-                          </svg>
-                        </button>
-                      </div>
+        {/* AI 종합 분석 모달 */}
+        {showComprehensiveModal && comprehensiveReport && (
+          <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
+            <div id="comprehensive-report" className="iso-card bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-auto border-2 border-purple-500/50">
+              <div className="p-8">
+                {/* 헤더 */}
+                <div className="flex justify-between items-center mb-8">
+                  <h2 className="text-3xl font-black text-white flex items-center gap-3">
+                    📊 AI 종합 투자 분석 보고서
+                  </h2>
+                  <button
+                    onClick={() => setShowComprehensiveModal(false)}
+                    className="p-3 rounded-xl bg-slate-700 hover:bg-slate-600 text-white transition-colors"
+                  >
+                    ✕
+                  </button>
+                </div>
 
-                      {/* 점수 */}
-                      <div className="mb-6 p-4 rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-indigo-500/30 text-center">
-                        <p className="text-xs text-indigo-300 uppercase font-bold mb-2">Overall Score</p>
-                        <p className="text-5xl font-black text-white">{report.overallScore}</p>
-                        <p className="text-xs text-slate-400 mt-1">/ 100점</p>
-                      </div>
+                {/* 게임 정보 */}
+                <div className="mb-6 p-4 rounded-xl bg-gradient-to-r from-indigo-500/20 to-purple-500/20 border border-indigo-500/30">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <h3 className="text-xl font-bold text-white">{comprehensiveReport.gameName}</h3>
+                      <p className="text-sm text-slate-400">총 {comprehensiveReport.maxRounds}라운드 | {comprehensiveReport.totalTeams}팀 참가</p>
+                    </div>
+                    <p className="text-xs text-slate-500">
+                      분석 시간: {new Date(comprehensiveReport.timestamp).toLocaleString('ko-KR')}
+                    </p>
+                  </div>
+                </div>
 
-                      {/* 요약 */}
-                      <div className="mb-4 p-4 rounded-xl bg-slate-700/30">
-                        <h3 className="text-sm font-bold text-white mb-2">📝 요약</h3>
-                        <p className="text-sm text-slate-300">{report.summary}</p>
-                      </div>
+                {/* 전체 종합 분석 */}
+                <div className="mb-8 p-6 rounded-xl bg-slate-700/50 border border-slate-600/50">
+                  <h3 className="text-xl font-black text-white mb-4 flex items-center gap-2">
+                    🎯 전체 종합 평가
+                  </h3>
+                  <p className="text-slate-300 mb-6 leading-relaxed">{comprehensiveReport.overallSummary}</p>
 
-                      {/* 강점 */}
-                      {report.strengths.length > 0 && (
-                        <div className="mb-4 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
-                          <h3 className="text-sm font-bold text-emerald-300 mb-2">✅ 강점</h3>
-                          <ul className="space-y-1">
-                            {report.strengths.map((s, i) => (
-                              <li key={i} className="text-sm text-slate-300 flex items-start gap-2">
-                                <span className="text-emerald-400">•</span>
-                                {s}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* 잘한 점 */}
+                    <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
+                      <h4 className="text-sm font-bold text-emerald-300 mb-3">✅ 전체적으로 잘한 점</h4>
+                      <ul className="space-y-2">
+                        {comprehensiveReport.overallStrengths.map((s, i) => (
+                          <li key={i} className="text-sm text-slate-300 flex items-start gap-2">
+                            <span className="text-emerald-400 mt-0.5">•</span>
+                            <span>{s}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
 
-                      {/* 개선점 */}
-                      {report.weaknesses.length > 0 && (
-                        <div className="mb-4 p-4 rounded-xl bg-rose-500/10 border border-rose-500/30">
-                          <h3 className="text-sm font-bold text-rose-300 mb-2">⚠️ 개선점</h3>
-                          <ul className="space-y-1">
-                            {report.weaknesses.map((w, i) => (
-                              <li key={i} className="text-sm text-slate-300 flex items-start gap-2">
-                                <span className="text-rose-400">•</span>
-                                {w}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
+                    {/* 아쉬운 점 */}
+                    <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/30">
+                      <h4 className="text-sm font-bold text-rose-300 mb-3">⚠️ 전체적으로 아쉬운 점</h4>
+                      <ul className="space-y-2">
+                        {comprehensiveReport.overallWeaknesses.map((w, i) => (
+                          <li key={i} className="text-sm text-slate-300 flex items-start gap-2">
+                            <span className="text-rose-400 mt-0.5">•</span>
+                            <span>{w}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                </div>
 
-                      {/* 추천 */}
-                      {report.recommendations.length > 0 && (
-                        <div className="mb-4 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30">
-                          <h3 className="text-sm font-bold text-amber-300 mb-2">💡 추천</h3>
-                          <ul className="space-y-1">
-                            {report.recommendations.map((r, i) => (
-                              <li key={i} className="text-sm text-slate-300 flex items-start gap-2">
-                                <span className="text-amber-400">•</span>
-                                {r}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-
-                      {/* 정보카드 기반 투자 분석 */}
-                      {report.infoCardAnalysis && report.infoCardAnalysis.length > 0 && (
-                        <div className="mb-4 p-4 rounded-xl bg-gradient-to-br from-purple-500/10 to-pink-500/10 border border-purple-500/30">
-                          <h3 className="text-sm font-bold text-purple-300 mb-2">🔍 정보카드 vs 협상 투자 분석</h3>
-                          <ul className="space-y-2">
-                            {report.infoCardAnalysis.map((analysis, i) => (
-                              <li key={i} className="text-sm text-slate-300 flex items-start gap-2">
-                                <span className="text-purple-400">•</span>
-                                {analysis}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                      )}
-
-                      {/* 분석 시간 */}
-                      <p className="text-xs text-slate-500 text-center mt-4">
-                        분석 시간: {new Date(report.timestamp).toLocaleString('ko-KR')}
-                      </p>
-
-                      <button
-                        onClick={() => setShowAnalysisModal(null)}
-                        className="btn-3d w-full mt-6 bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-3 rounded-xl font-bold"
+                {/* 팀별 분석 */}
+                <div className="mb-6">
+                  <h3 className="text-xl font-black text-white mb-4 flex items-center gap-2">
+                    👥 팀별 상세 분석
+                  </h3>
+                  <div className="space-y-4">
+                    {comprehensiveReport.teamAnalyses.map((team) => (
+                      <div
+                        key={team.teamNumber}
+                        className={`p-5 rounded-xl border ${
+                          team.rank === 1 ? 'bg-gradient-to-r from-amber-500/10 to-yellow-500/10 border-amber-500/30' :
+                          team.rank === 2 ? 'bg-gradient-to-r from-slate-400/10 to-gray-400/10 border-slate-400/30' :
+                          team.rank === 3 ? 'bg-gradient-to-r from-orange-600/10 to-amber-700/10 border-orange-600/30' :
+                          'bg-slate-700/30 border-slate-600/30'
+                        }`}
                       >
-                        닫기
-                      </button>
-                    </>
-                  );
-                })()}
+                        <div className="flex items-center gap-3 mb-4">
+                          <span className="text-2xl">
+                            {team.rank === 1 ? '🥇' : team.rank === 2 ? '🥈' : team.rank === 3 ? '🥉' : `${team.rank}위`}
+                          </span>
+                          <div className="flex-1">
+                            <p className="font-bold text-white">{team.teamName}</p>
+                            <p className="text-xs text-slate-400">{team.investmentStyle}</p>
+                          </div>
+                          <p className={`text-xl font-black ${team.profitRate >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                            {team.profitRate >= 0 ? '+' : ''}{team.profitRate.toFixed(1)}%
+                          </p>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <div className="p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
+                            <p className="text-xs font-bold text-emerald-300 mb-2">잘한 점</p>
+                            <ul className="space-y-1">
+                              {team.strengths.map((s, i) => (
+                                <li key={i} className="text-xs text-slate-300 flex items-start gap-1.5">
+                                  <span className="text-emerald-400">•</span>
+                                  {s}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                          <div className="p-3 rounded-lg bg-rose-500/5 border border-rose-500/20">
+                            <p className="text-xs font-bold text-rose-300 mb-2">아쉬운 점</p>
+                            <ul className="space-y-1">
+                              {team.weaknesses.map((w, i) => (
+                                <li key={i} className="text-xs text-slate-300 flex items-start gap-1.5">
+                                  <span className="text-rose-400">•</span>
+                                  {w}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 버튼 그룹 */}
+                <div className="flex gap-4">
+                  <button
+                    onClick={() => {
+                      // PDF 다운로드 기능
+                      const printContent = document.getElementById('comprehensive-report');
+                      if (printContent) {
+                        const printWindow = window.open('', '_blank');
+                        if (printWindow) {
+                          printWindow.document.write(`
+                            <!DOCTYPE html>
+                            <html>
+                            <head>
+                              <title>AI 종합 투자 분석 보고서 - ${comprehensiveReport.gameName}</title>
+                              <style>
+                                * { margin: 0; padding: 0; box-sizing: border-box; }
+                                body {
+                                  font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif;
+                                  padding: 40px;
+                                  background: white;
+                                  color: #1e293b;
+                                  line-height: 1.6;
+                                }
+                                h1 { font-size: 28px; margin-bottom: 20px; color: #1e293b; }
+                                h2 { font-size: 22px; margin: 30px 0 15px; color: #334155; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; }
+                                h3 { font-size: 18px; margin: 20px 0 10px; color: #475569; }
+                                h4 { font-size: 14px; margin: 15px 0 8px; color: #64748b; font-weight: 600; }
+                                p { margin: 10px 0; color: #475569; }
+                                ul { list-style: none; padding-left: 0; }
+                                li { margin: 8px 0; padding-left: 20px; position: relative; }
+                                li:before { content: "•"; position: absolute; left: 0; color: #6366f1; font-weight: bold; }
+                                .header { text-align: center; margin-bottom: 40px; padding-bottom: 20px; border-bottom: 3px solid #6366f1; }
+                                .header h1 { color: #6366f1; }
+                                .meta { font-size: 14px; color: #94a3b8; margin-top: 10px; }
+                                .section { margin: 30px 0; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; }
+                                .strengths { background: #f0fdf4; border-color: #86efac; }
+                                .weaknesses { background: #fef2f2; border-color: #fca5a5; }
+                                .strengths h4 { color: #16a34a; }
+                                .weaknesses h4 { color: #dc2626; }
+                                .strengths li:before { color: #16a34a; }
+                                .weaknesses li:before { color: #dc2626; }
+                                .team { margin: 20px 0; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; background: #f8fafc; }
+                                .team-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+                                .team-rank { font-size: 24px; }
+                                .team-name { font-size: 18px; font-weight: bold; }
+                                .team-style { font-size: 12px; color: #94a3b8; }
+                                .team-profit { font-size: 20px; font-weight: bold; }
+                                .team-profit.positive { color: #16a34a; }
+                                .team-profit.negative { color: #dc2626; }
+                                .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+                                .grid-item { padding: 15px; border-radius: 8px; }
+                                @media print {
+                                  body { padding: 20px; }
+                                  .team { break-inside: avoid; }
+                                }
+                              </style>
+                            </head>
+                            <body>
+                              <div class="header">
+                                <h1>AI 종합 투자 분석 보고서</h1>
+                                <p style="font-size: 18px; margin-top: 10px;">${comprehensiveReport.gameName}</p>
+                                <p class="meta">총 ${comprehensiveReport.maxRounds}라운드 | ${comprehensiveReport.totalTeams}팀 참가 | 분석일시: ${new Date(comprehensiveReport.timestamp).toLocaleString('ko-KR')}</p>
+                              </div>
+
+                              <h2>🎯 전체 종합 평가</h2>
+                              <p style="font-size: 16px; margin: 20px 0;">${comprehensiveReport.overallSummary}</p>
+
+                              <div class="grid" style="margin-top: 20px;">
+                                <div class="section strengths">
+                                  <h4>✅ 전체적으로 잘한 점</h4>
+                                  <ul>
+                                    ${comprehensiveReport.overallStrengths.map(s => `<li>${s}</li>`).join('')}
+                                  </ul>
+                                </div>
+                                <div class="section weaknesses">
+                                  <h4>⚠️ 전체적으로 아쉬운 점</h4>
+                                  <ul>
+                                    ${comprehensiveReport.overallWeaknesses.map(w => `<li>${w}</li>`).join('')}
+                                  </ul>
+                                </div>
+                              </div>
+
+                              <h2 style="margin-top: 40px;">👥 팀별 상세 분석</h2>
+                              ${comprehensiveReport.teamAnalyses.map(team => `
+                                <div class="team">
+                                  <div class="team-header">
+                                    <div>
+                                      <span class="team-rank">${team.rank === 1 ? '🥇' : team.rank === 2 ? '🥈' : team.rank === 3 ? '🥉' : team.rank + '위'}</span>
+                                      <span class="team-name" style="margin-left: 10px;">${team.teamName}</span>
+                                      <p class="team-style">${team.investmentStyle}</p>
+                                    </div>
+                                    <span class="team-profit ${team.profitRate >= 0 ? 'positive' : 'negative'}">${team.profitRate >= 0 ? '+' : ''}${team.profitRate.toFixed(1)}%</span>
+                                  </div>
+                                  <div class="grid">
+                                    <div class="grid-item" style="background: #f0fdf4;">
+                                      <h4 style="color: #16a34a; margin-bottom: 10px;">잘한 점</h4>
+                                      <ul>${team.strengths.map(s => `<li style="font-size: 13px;">${s}</li>`).join('')}</ul>
+                                    </div>
+                                    <div class="grid-item" style="background: #fef2f2;">
+                                      <h4 style="color: #dc2626; margin-bottom: 10px;">아쉬운 점</h4>
+                                      <ul>${team.weaknesses.map(w => `<li style="font-size: 13px;">${w}</li>`).join('')}</ul>
+                                    </div>
+                                  </div>
+                                </div>
+                              `).join('')}
+
+                              <p style="text-align: center; color: #94a3b8; margin-top: 40px; font-size: 12px;">
+                                Generated by AI Investment Analyst | Running-Man Stock Game
+                              </p>
+                            </body>
+                            </html>
+                          `);
+                          printWindow.document.close();
+                          printWindow.print();
+                        }
+                      }
+                    }}
+                    className="flex-1 btn-3d bg-gradient-to-r from-blue-500 to-cyan-500 text-white py-4 rounded-xl font-bold text-lg hover:from-blue-600 hover:to-cyan-600 transition-all"
+                  >
+                    📄 PDF로 저장/인쇄
+                  </button>
+                  <button
+                    onClick={() => setShowComprehensiveModal(false)}
+                    className="flex-1 btn-3d bg-gradient-to-r from-slate-600 to-slate-700 text-white py-4 rounded-xl font-bold text-lg hover:from-slate-500 hover:to-slate-600 transition-all"
+                  >
+                    닫기
+                  </button>
+                </div>
               </div>
             </div>
           </div>
