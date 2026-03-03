@@ -2094,7 +2094,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                       const hasAnyInvestment = gameState.teams.some(team => {
                         const txHistory = team.transactionHistory || [];
                         const hasTx = txHistory.some(tx =>
-                          tx.round === selectedTableRound && tx.stockId === stock.id && tx.type === 'BUY'
+                          Number(tx.round) === selectedTableRound && tx.stockId === stock.id && tx.type === 'BUY'
                         );
                         // 현재 라운드에서 투자 확정 전이면 portfolio에서도 확인
                         if (!hasTx && selectedTableRound === gameState.currentRound && !gameState.isInvestmentConfirmed) {
@@ -2139,8 +2139,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                             // 수량 계산 - transactionHistory에서 해당 라운드 매수 내역
                             const txHistory = team.transactionHistory || [];
                             let qty = txHistory
-                              .filter(tx => tx.round === selectedTableRound && tx.stockId === stock.id && tx.type === 'BUY')
-                              .reduce((sum, tx) => sum + tx.quantity, 0);
+                              .filter(tx => Number(tx.round) === selectedTableRound && tx.stockId === stock.id && tx.type === 'BUY')
+                              .reduce((sum, tx) => sum + (Number(tx.quantity) || 0), 0);
 
                             // 현재 라운드에서 투자 확정 전이면 portfolio에서도 확인 (fallback)
                             if (qty === 0 && selectedTableRound === gameState.currentRound && !gameState.isInvestmentConfirmed) {
@@ -2214,7 +2214,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                         let buyValue = 0; // 매수금액
 
                         // transactionHistory에서 해당 라운드 매수 내역
-                        const roundTxs = (team.transactionHistory || []).filter(tx => tx.round === selectedTableRound && tx.type === 'BUY');
+                        const roundTxs = (team.transactionHistory || []).filter(tx => Number(tx.round) === selectedTableRound && tx.type === 'BUY');
                         roundTxs.forEach(tx => {
                           const stock = gameState.stocks.find(s => s.id === tx.stockId);
                           if (stock) {
@@ -2341,7 +2341,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                         .map((team) => {
                           // 해당 라운드의 매수 내역에서 수익 계산
                           const txHistory = team.transactionHistory || [];
-                          const roundBuys = txHistory.filter(tx => tx.round === selectedTableRound && tx.type === 'BUY');
+                          const roundBuys = txHistory.filter(tx => Number(tx.round) === selectedTableRound && tx.type === 'BUY');
 
                           let investedValue = 0;  // 매수 금액
                           let currentValue = 0;   // 현재 가치
@@ -2351,8 +2351,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                             if (stock) {
                               const buyPrice = stock.prices[selectedTableRound - 1];
                               const nextPrice = stock.prices[selectedTableRound] || buyPrice;
-                              investedValue += tx.quantity * buyPrice;
-                              currentValue += tx.quantity * nextPrice;
+                              investedValue += Number(tx.quantity) * buyPrice;
+                              currentValue += Number(tx.quantity) * nextPrice;
                             }
                           });
 
