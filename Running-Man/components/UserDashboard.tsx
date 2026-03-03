@@ -72,6 +72,13 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
     }
   }, [gameState.timerSeconds, gameState.currentStep, gameState.isTimerRunning]);
 
+  // 투자 시작 시 자동으로 TRADE 탭으로 전환
+  useEffect(() => {
+    if (gameState.currentStep === GameStep.INVESTMENT && gameState.isTimerRunning) {
+      setActiveTab('invest');
+    }
+  }, [gameState.currentStep, gameState.isTimerRunning]);
+
   // 총 자산 계산
   const totalAssets = useMemo(() => {
     const stockValue = Object.entries(myTeam.portfolio).reduce((acc, [id, qty]) => {

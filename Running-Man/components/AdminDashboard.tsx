@@ -1359,14 +1359,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               {/* 타이머 시작 */}
               <button
                 onClick={startInvestment}
-                disabled={gameState.currentStep !== GameStep.INVESTMENT}
+                disabled={gameState.currentStep !== GameStep.INVESTMENT || gameState.isTimerRunning}
                 className={`w-full py-4 rounded-xl font-bold transition-all ${
-                  gameState.currentStep === GameStep.INVESTMENT
-                    ? 'btn-3d bg-gradient-to-r from-emerald-500 to-teal-500 text-white'
-                    : 'bg-slate-700/50 text-slate-500 cursor-not-allowed'
+                  gameState.currentStep !== GameStep.INVESTMENT
+                    ? 'bg-slate-700/50 text-slate-500 cursor-not-allowed'
+                    : gameState.isTimerRunning
+                      ? 'bg-amber-500/20 text-amber-300 border-2 border-amber-500/50 cursor-not-allowed animate-pulse'
+                      : 'btn-3d bg-gradient-to-r from-emerald-500 to-teal-500 text-white'
                 }`}
               >
-                🚀 투자 시작
+                {gameState.isTimerRunning ? '⏳ 투자 결정중...' : '🚀 투자 시작'}
               </button>
 
               {/* 타이머 프로그레스 */}
