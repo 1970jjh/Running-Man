@@ -432,21 +432,23 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     }));
   };
 
-  // 투자 잠금/해제
-  const toggleInvestmentLock = async () => {
+  // 투자 확정/해제 토글 (확정 시 다음 라운드 가격으로 수익률 계산 및 자동 매도)
+  const toggleInvestmentConfirm = async () => {
     if (!gameState) return;
 
-    await updateGameState((current) => ({
-      ...current,
-      isInvestmentLocked: !current.isInvestmentLocked,
-      isTimerRunning: current.isInvestmentLocked
-    }));
-  };
+    // 이미 확정된 경우 → 확정 해제 (투자 가능 상태로)
+    if (gameState.isInvestmentConfirmed) {
+      await updateGameState((current) => ({
+        ...current,
+        isInvestmentLocked: false,
+        isInvestmentConfirmed: false,
+        isPortfolioLocked: false,
+        isTimerRunning: true
+      }));
+      return;
+    }
 
-  // 투자 확정 (다음 라운드 가격으로 수익률 계산 및 자동 매도)
-  const confirmInvestment = async () => {
-    if (!gameState) return;
-
+    // 확정되지 않은 경우 → 투자 확정
     await updateGameState((current) => {
       const currentRound = current.currentRound;
       // 결과 가격 인덱스: prices[currentRound] (투자 시 prices[currentRound-1], 결과는 다음 인덱스)
@@ -538,12 +540,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     });
   };
 
-  // 결과 발표 (사용자에게 공개) - 팝업 자동 표시 안함
+  // 결과 발표 (사용자에게 공개) - 이미 공개된 경우 주식현황판 표시
   const revealResults = async () => {
     if (!gameState) return;
 
-    // 이미 결과가 공개된 경우 아무것도 하지 않음 (주식현황판으로 직접 확인)
+    // 이미 결과가 공개된 경우 주식현황판 열기
     if (gameState.revealedResults) {
+      setShowInvestmentTable(true);
       return;
     }
 
@@ -1366,18 +1369,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                 🚀 투자 시작
               </button>
 
-              {/* 투자 잠금/해제 */}
-              <button
-                onClick={toggleInvestmentLock}
-                className={`w-full py-4 rounded-xl font-bold transition-all ${
-                  gameState.isInvestmentLocked
-                    ? 'bg-rose-500/20 text-rose-300 border-2 border-rose-500/30 hover:bg-rose-500/30'
-                    : 'bg-emerald-500/20 text-emerald-300 border-2 border-emerald-500/30 hover:bg-emerald-500/30'
-                }`}
-              >
-                {gameState.isInvestmentLocked ? '🔒 투자 잠금됨 (클릭하여 열기)' : '🔓 투자 진행중 (클릭하여 잠금)'}
-              </button>
-
               {/* 타이머 프로그레스 */}
               {gameState.timerMaxSeconds > 0 && (
                 <div className="mt-4">
@@ -1394,19 +1385,19 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                 </div>
               )}
 
-              {/* 투자 확정 버튼 */}
+              {/* 투자 확정/해제 버튼 (투자 잠금 기능 통합) */}
               <button
-                onClick={confirmInvestment}
-                disabled={gameState.currentStep !== GameStep.INVESTMENT || gameState.isInvestmentConfirmed}
+                onClick={toggleInvestmentConfirm}
+                disabled={gameState.currentStep !== GameStep.INVESTMENT}
                 className={`w-full py-4 rounded-xl font-bold transition-all mt-4 ${
-                  gameState.currentStep === GameStep.INVESTMENT && !gameState.isInvestmentConfirmed
-                    ? 'btn-3d bg-gradient-to-r from-amber-500 to-orange-500 text-white'
+                  gameState.currentStep !== GameStep.INVESTMENT
+                    ? 'bg-slate-700/50 text-slate-500 cursor-not-allowed'
                     : gameState.isInvestmentConfirmed
-                      ? 'bg-emerald-500/20 text-emerald-300 border-2 border-emerald-500/30 cursor-not-allowed'
-                      : 'bg-slate-700/50 text-slate-500 cursor-not-allowed'
+                      ? 'bg-emerald-500/20 text-emerald-300 border-2 border-emerald-500/30 hover:bg-emerald-500/30'
+                      : 'btn-3d bg-gradient-to-r from-amber-500 to-orange-500 text-white'
                 }`}
               >
-                {gameState.isInvestmentConfirmed ? '✅ 투자 확정 완료' : '💎 투자 확정'}
+                {gameState.isInvestmentConfirmed ? '✅ 투자 확정 완료 (클릭하여 해제)' : '💎 투자 확정'}
               </button>
 
               {/* 주식현황판 보기 버튼 (결과발표 위에) */}
@@ -2012,11 +2003,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                     <span className="text-white font-bold">정보 구매 & 투자</span>
                   </span>
                   <span className="flex items-center gap-2">
-                    <span className="w-8 h-8 bg-amber-500/50 border-3 border-amber-400 rounded"></span>
+                    <span className="w-8 h-8 bg-pink-500/50 border-3 border-pink-400 rounded"></span>
                     <span className="text-white font-bold">정보 없이 투자</span>
                   </span>
                   <span className="flex items-center gap-2">
-                    <span className="w-8 h-8 bg-pink-500/50 border-3 border-pink-400 rounded"></span>
+                    <span className="w-8 h-8 bg-amber-500/50 border-3 border-amber-400 rounded"></span>
                     <span className="text-white font-bold">타팀 정보로 투자</span>
                   </span>
                   <span className="flex items-center gap-3">
@@ -2196,9 +2187,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                             // 팀 공개 후 투자 정보에 따른 추가 색상
                             if (isTeamRevealed && qty > 0 && !teamHasInfo) {
                               if (otherTeamHasInfo) {
-                                cellBgClass = 'bg-pink-500/30 border-l-4 border-pink-400';
-                              } else {
                                 cellBgClass = 'bg-amber-500/30 border-l-4 border-amber-400';
+                              } else {
+                                cellBgClass = 'bg-pink-500/30 border-l-4 border-pink-400';
                               }
                             }
 
@@ -2524,7 +2515,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               {/* 헤더 */}
               <div className="flex justify-between items-center mb-8">
                 <h2 className="text-4xl font-black text-white flex items-center gap-3">
-                  🏆 {selectedTableRound}R 팀별 수익 순위
+                  🏆 {selectedTableRound}R 팀별 총 자산 순위
                 </h2>
                 <button
                   onClick={() => setShowRankingGraph(false)}
@@ -2537,42 +2528,39 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               {/* 세로 막대 그래프 */}
               <div className="flex items-end justify-center gap-8 pb-4" style={{ minHeight: '500px' }}>
                 {(() => {
-                  // 공개된 팀들의 해당 라운드 수익 계산
+                  // 공개된 팀들의 총 자산 계산 (현금 + 주식 가치)
+                  const INITIAL_SEED_MONEY = 10000000; // 1000만원
                   const teamAssets = gameState.teams
                     .filter(team => revealedTeams.has(team.id))
                     .map((team) => {
-                      const txHistory = team.transactionHistory || [];
-                      const roundBuys = txHistory.filter(tx => Number(tx.round) === selectedTableRound && tx.type === 'BUY');
-
-                      let investedValue = 0;
-                      let currentValue = 0;
-
-                      roundBuys.forEach(tx => {
-                        const stock = gameState.stocks.find(s => s.id === tx.stockId);
-                        if (stock) {
-                          const buyPrice = stock.prices[selectedTableRound - 1];
-                          const nextPrice = stock.prices[selectedTableRound] || buyPrice;
-                          investedValue += Number(tx.quantity) * buyPrice;
-                          currentValue += Number(tx.quantity) * nextPrice;
+                      // 총 자산 계산: 현금 + 포트폴리오 가치 (현재 주가 기준)
+                      const stockValue = Object.entries(team.portfolio || {}).reduce((sum, [stockId, qty]) => {
+                        const stock = gameState.stocks.find(s => s.id === stockId);
+                        if (stock && qty > 0) {
+                          // 현재 라운드의 다음 가격 (즉, 결과 발표 후 가격)
+                          const currentPrice = stock.prices[selectedTableRound] || stock.prices[selectedTableRound - 1];
+                          return sum + (Number(qty) * currentPrice);
                         }
-                      });
+                        return sum;
+                      }, 0);
 
-                      const profitRate = investedValue > 0 ? ((currentValue - investedValue) / investedValue) * 100 : 0;
+                      const totalAssets = team.currentCash + stockValue;
+                      const profitRate = ((totalAssets - INITIAL_SEED_MONEY) / INITIAL_SEED_MONEY) * 100;
 
                       return {
                         team,
-                        currentValue,
+                        totalAssets,
                         profitRate,
                         color: teamColors[gameState.teams.indexOf(team) % teamColors.length]
                       };
                     })
                     // 총자산 기준 정렬 (내림차순)
-                    .sort((a, b) => b.currentValue - a.currentValue);
+                    .sort((a, b) => b.totalAssets - a.totalAssets);
 
-                  const maxValue = Math.max(...teamAssets.map(t => t.currentValue), 1);
+                  const maxValue = Math.max(...teamAssets.map(t => t.totalAssets), 1);
 
-                  return teamAssets.map(({ team, currentValue, profitRate, color }, index) => {
-                    const barHeight = Math.max(10, (currentValue / maxValue) * 100);
+                  return teamAssets.map(({ team, totalAssets, profitRate, color }, index) => {
+                    const barHeight = Math.max(10, (totalAssets / maxValue) * 100);
 
                     return (
                       <div key={team.id} className="flex flex-col items-center" style={{ width: '140px' }}>
@@ -2589,7 +2577,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                         {/* 총자산 & 수익률 */}
                         <div className="text-center mb-4">
                           <div className="text-white font-black text-2xl">
-                            {formatKoreanMoney(currentValue)}
+                            {formatKoreanMoney(totalAssets)}
                           </div>
                           <div className={`text-xl font-bold ${profitRate >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                             {profitRate >= 0 ? '+' : ''}{profitRate.toFixed(1)}%
