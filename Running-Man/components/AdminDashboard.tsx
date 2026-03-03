@@ -2524,7 +2524,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               {/* 헤더 */}
               <div className="flex justify-between items-center mb-8">
                 <h2 className="text-4xl font-black text-white flex items-center gap-3">
-                  🏆 {selectedTableRound}R 팀별 수익 순위
+                  🏆 {selectedTableRound}R 팀별 총 자산 순위
                 </h2>
                 <button
                   onClick={() => setShowRankingGraph(false)}
@@ -2537,42 +2537,39 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               {/* 세로 막대 그래프 */}
               <div className="flex items-end justify-center gap-8 pb-4" style={{ minHeight: '500px' }}>
                 {(() => {
-                  // 공개된 팀들의 해당 라운드 수익 계산
+                  // 공개된 팀들의 총 자산 계산 (현금 + 주식 가치)
+                  const INITIAL_SEED_MONEY = 10000000; // 1000만원
                   const teamAssets = gameState.teams
                     .filter(team => revealedTeams.has(team.id))
                     .map((team) => {
-                      const txHistory = team.transactionHistory || [];
-                      const roundBuys = txHistory.filter(tx => Number(tx.round) === selectedTableRound && tx.type === 'BUY');
-
-                      let investedValue = 0;
-                      let currentValue = 0;
-
-                      roundBuys.forEach(tx => {
-                        const stock = gameState.stocks.find(s => s.id === tx.stockId);
-                        if (stock) {
-                          const buyPrice = stock.prices[selectedTableRound - 1];
-                          const nextPrice = stock.prices[selectedTableRound] || buyPrice;
-                          investedValue += Number(tx.quantity) * buyPrice;
-                          currentValue += Number(tx.quantity) * nextPrice;
+                      // 총 자산 계산: 현금 + 포트폴리오 가치 (현재 주가 기준)
+                      const stockValue = Object.entries(team.portfolio || {}).reduce((sum, [stockId, qty]) => {
+                        const stock = gameState.stocks.find(s => s.id === stockId);
+                        if (stock && qty > 0) {
+                          // 현재 라운드의 다음 가격 (즉, 결과 발표 후 가격)
+                          const currentPrice = stock.prices[selectedTableRound] || stock.prices[selectedTableRound - 1];
+                          return sum + (Number(qty) * currentPrice);
                         }
-                      });
+                        return sum;
+                      }, 0);
 
-                      const profitRate = investedValue > 0 ? ((currentValue - investedValue) / investedValue) * 100 : 0;
+                      const totalAssets = team.currentCash + stockValue;
+                      const profitRate = ((totalAssets - INITIAL_SEED_MONEY) / INITIAL_SEED_MONEY) * 100;
 
                       return {
                         team,
-                        currentValue,
+                        totalAssets,
                         profitRate,
                         color: teamColors[gameState.teams.indexOf(team) % teamColors.length]
                       };
                     })
                     // 총자산 기준 정렬 (내림차순)
-                    .sort((a, b) => b.currentValue - a.currentValue);
+                    .sort((a, b) => b.totalAssets - a.totalAssets);
 
-                  const maxValue = Math.max(...teamAssets.map(t => t.currentValue), 1);
+                  const maxValue = Math.max(...teamAssets.map(t => t.totalAssets), 1);
 
-                  return teamAssets.map(({ team, currentValue, profitRate, color }, index) => {
-                    const barHeight = Math.max(10, (currentValue / maxValue) * 100);
+                  return teamAssets.map(({ team, totalAssets, profitRate, color }, index) => {
+                    const barHeight = Math.max(10, (totalAssets / maxValue) * 100);
 
                     return (
                       <div key={team.id} className="flex flex-col items-center" style={{ width: '140px' }}>
@@ -2589,7 +2586,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                         {/* 총자산 & 수익률 */}
                         <div className="text-center mb-4">
                           <div className="text-white font-black text-2xl">
-                            {formatKoreanMoney(currentValue)}
+                            {formatKoreanMoney(totalAssets)}
                           </div>
                           <div className={`text-xl font-bold ${profitRate >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                             {profitRate >= 0 ? '+' : ''}{profitRate.toFixed(1)}%
