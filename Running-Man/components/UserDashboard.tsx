@@ -149,11 +149,11 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
             </div>
           </div>
 
-          {/* 자산 현황 - 투자 단계에서는 항상 표시 */}
+          {/* 자산 현황 - 투자/결과 단계에서는 숨김 (다음 라운드 시작 또는 게임 종료 시에만 표시) */}
           <div className="grid grid-cols-3 gap-2">
             <div className="p-2 md:p-3 rounded-lg bg-slate-700/30 border border-slate-600/30">
               <p className="text-[9px] md:text-[10px] text-slate-400 uppercase font-bold mb-1">총 자산</p>
-              {gameState.isPortfolioLocked && gameState.currentStep !== GameStep.INVESTMENT ? (
+              {(gameState.currentStep === GameStep.INVESTMENT || gameState.currentStep === GameStep.RESULT) && gameState.currentStatus !== GameStatus.FINISHED ? (
                 <p className="text-sm md:text-lg font-black text-slate-500 font-display">🔒</p>
               ) : (
                 <p className="text-sm md:text-lg font-black text-white font-display truncate">{totalAssets.toLocaleString()}</p>
@@ -161,7 +161,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
             </div>
             <div className="p-2 md:p-3 rounded-lg bg-slate-700/30 border border-slate-600/30">
               <p className="text-[9px] md:text-[10px] text-slate-400 uppercase font-bold mb-1">현금</p>
-              {gameState.isPortfolioLocked && gameState.currentStep !== GameStep.INVESTMENT ? (
+              {(gameState.currentStep === GameStep.INVESTMENT || gameState.currentStep === GameStep.RESULT) && gameState.currentStatus !== GameStatus.FINISHED ? (
                 <p className="text-sm md:text-lg font-black text-slate-500 font-display">🔒</p>
               ) : (
                 <p className="text-sm md:text-lg font-black text-emerald-400 font-display truncate">{myTeam.currentCash.toLocaleString()}</p>
@@ -169,7 +169,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
             </div>
             <div className="p-2 md:p-3 rounded-lg bg-slate-700/30 border border-slate-600/30">
               <p className="text-[9px] md:text-[10px] text-slate-400 uppercase font-bold mb-1">수익률</p>
-              {gameState.isPortfolioLocked && gameState.currentStep !== GameStep.INVESTMENT ? (
+              {(gameState.currentStep === GameStep.INVESTMENT || gameState.currentStep === GameStep.RESULT) && gameState.currentStatus !== GameStatus.FINISHED ? (
                 <p className="text-sm md:text-lg font-black text-slate-500 font-display">🔒</p>
               ) : (
                 <p className={`text-sm md:text-lg font-black font-display ${profitRate >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
@@ -540,15 +540,17 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
                 )}
               </div>
 
-              {/* 라운드별 결과 - 결과발표가 되어야만 현재 라운드 결과 표시 */}
+              {/* 라운드별 결과 - 다음 라운드가 시작되어야만 이전 라운드 결과 표시 (게임 종료 시 모든 결과 표시) */}
               {(() => {
-                // 공개된 라운드 결과만 필터링 (현재 라운드는 revealedResults가 true일 때만 표시)
+                // 공개된 라운드 결과만 필터링
+                // - 게임 종료 시: 모든 라운드 결과 표시
+                // - 진행 중: 이전 라운드 결과만 표시 (현재 라운드 결과는 다음 라운드 시작 시 표시)
                 const visibleResults = myTeam.roundResults.filter(result => {
-                  // 현재 라운드 결과는 revealedResults가 true일 때만 표시
-                  if (result.round === gameState.currentRound) {
-                    return gameState.revealedResults;
+                  // 게임 종료 시 모든 결과 표시
+                  if (gameState.currentStatus === GameStatus.FINISHED) {
+                    return true;
                   }
-                  // 이전 라운드 결과는 항상 표시
+                  // 진행 중에는 이전 라운드 결과만 표시 (현재 라운드 결과는 숨김)
                   return result.round < gameState.currentRound;
                 });
 

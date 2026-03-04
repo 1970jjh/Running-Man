@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useRef, useCallback, useEffect } from 'react';
-import { GameState, Team, Stock, GameStep } from '../types';
+import { GameState, Team, Stock, GameStep, GameStatus } from '../types';
 import { getMaxInvestmentRatio, INFO_CARDS, INITIAL_SEED_MONEY } from '../constants';
 import { TradeRequest } from '../firebase';
 import { playTradeSound, resumeAudioContext } from '../utils/sounds';
@@ -862,6 +862,11 @@ const InvestmentModule: React.FC<InvestmentModuleProps> = ({ gameState, myTeam, 
                       const isPastRound = selectedTableRound < gameState.currentRound;
                       const isResultRevealed = isPastRound || gameState.revealedResults;
 
+                      // 자산 정보 표시 여부: 투자/결과 단계에서는 숨김 (게임 종료 시 또는 다음 라운드에서만 표시)
+                      const canShowAssets = gameState.currentStatus === GameStatus.FINISHED ||
+                        (gameState.currentStep !== GameStep.INVESTMENT && gameState.currentStep !== GameStep.RESULT) ||
+                        isPastRound;
+
                       // 내 팀의 요약 계산
                       const getTeamSummary = (team: Team) => {
                         if (selectedTableRound === gameState.currentRound) {
@@ -901,9 +906,13 @@ const InvestmentModule: React.FC<InvestmentModuleProps> = ({ gameState, myTeam, 
                             </td>
                             <td colSpan={3} className="px-4 py-3 border-b border-indigo-500/30"></td>
                             <td className="px-4 py-3 text-center border-b border-indigo-500/30">
-                              <span className="text-white font-black text-base">
-                                {(mySummary.stockValue / 10000).toFixed(0)}만원
-                              </span>
+                              {canShowAssets ? (
+                                <span className="text-white font-black text-base">
+                                  {(mySummary.stockValue / 10000).toFixed(0)}만원
+                                </span>
+                              ) : (
+                                <span className="text-slate-500 font-black text-base">🔒</span>
+                              )}
                             </td>
                             {isResultRevealed &&
                               gameState.teams
@@ -926,9 +935,13 @@ const InvestmentModule: React.FC<InvestmentModuleProps> = ({ gameState, myTeam, 
                             </td>
                             <td colSpan={3} className="px-4 py-3 border-b border-emerald-500/30"></td>
                             <td className="px-4 py-3 text-center border-b border-emerald-500/30">
-                              <span className="text-emerald-400 font-black text-base">
-                                {(mySummary.cash / 10000).toFixed(0)}만원
-                              </span>
+                              {canShowAssets ? (
+                                <span className="text-emerald-400 font-black text-base">
+                                  {(mySummary.cash / 10000).toFixed(0)}만원
+                                </span>
+                              ) : (
+                                <span className="text-slate-500 font-black text-base">🔒</span>
+                              )}
                             </td>
                             {isResultRevealed &&
                               gameState.teams
@@ -951,9 +964,13 @@ const InvestmentModule: React.FC<InvestmentModuleProps> = ({ gameState, myTeam, 
                             </td>
                             <td colSpan={3} className="px-4 py-3"></td>
                             <td className="px-4 py-3 text-center">
-                              <span className="text-amber-400 font-black text-base">
-                                {(mySummary.totalAssets / 10000).toFixed(0)}만원
-                              </span>
+                              {canShowAssets ? (
+                                <span className="text-amber-400 font-black text-base">
+                                  {(mySummary.totalAssets / 10000).toFixed(0)}만원
+                                </span>
+                              ) : (
+                                <span className="text-slate-500 font-black text-base">🔒</span>
+                              )}
                             </td>
                             {isResultRevealed &&
                               gameState.teams
