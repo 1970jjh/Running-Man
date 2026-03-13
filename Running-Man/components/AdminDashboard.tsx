@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { GameState, GameStatus, GameStep, Team, Room } from '../types';
 import { STOCK_DATA, INITIAL_SEED_MONEY, INFO_CARDS, STEP_NAMES, ADMIN_PASSWORD } from '../constants';
 import {
@@ -12,8 +12,7 @@ import {
   isFirebaseReady,
   getFirebaseError
 } from '../firebase';
-import analyzeTeamPerformance, { AnalysisReport, analyzeComprehensivePerformance, ComprehensiveAnalysisReport } from '../gemini';
-import { playTimerEndSound, playFinalResultSound, resumeAudioContext } from '../utils/sounds';
+import analyzeTeamPerformance, { AnalysisReport } from '../gemini';
 
 interface AdminDashboardProps {
   onLogout: () => void;
@@ -37,7 +36,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   const [setupPassword, setSetupPassword] = useState(ADMIN_PASSWORD);
 
   // 게임 관리
-  const [timerInput, setTimerInput] = useState(5); // 분 단위 (기본 5분)
+  const [timerInput, setTimerInput] = useState(300);
   const [showResultModal, setShowResultModal] = useState(false);
   const [resultStep, setResultStep] = useState<'stocks' | 'teams'>('stocks');
 
@@ -46,38 +45,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   const [analyzingTeamId, setAnalyzingTeamId] = useState<string | null>(null);
   const [showAnalysisModal, setShowAnalysisModal] = useState<string | null>(null);
 
-  // 종합 분석 관련 상태
-  const [comprehensiveReport, setComprehensiveReport] = useState<ComprehensiveAnalysisReport | null>(null);
-  const [isAnalyzingComprehensive, setIsAnalyzingComprehensive] = useState(false);
-  const [showComprehensiveModal, setShowComprehensiveModal] = useState(false);
-
   // 투자 테이블 모달 상태
   const [showInvestmentTable, setShowInvestmentTable] = useState(false);
-  const [selectedTableRound, setSelectedTableRound] = useState<number>(1);
-  const [revealedTeams, setRevealedTeams] = useState<Set<string>>(new Set()); // 결과 공개된 팀들
-  const [isPriceRevealed, setIsPriceRevealed] = useState(false); // 현재 주가 공개 여부
-  const [showRankingGraph, setShowRankingGraph] = useState(false); // 순위 그래프 팝업
-
-  // 팀별 색상 (랜덤 배정용)
-  const teamColors = [
-    'bg-rose-500', 'bg-blue-500', 'bg-emerald-500', 'bg-amber-500',
-    'bg-purple-500', 'bg-cyan-500', 'bg-pink-500', 'bg-indigo-500',
-    'bg-orange-500', 'bg-teal-500'
-  ];
-
-  // 독립 타이머 상태 (정보협상 등 다양한 용도)
-  const [showStandaloneTimer, setShowStandaloneTimer] = useState(false);
-  const [standaloneTimerSeconds, setStandaloneTimerSeconds] = useState(180); // 3분 기본
-  const [standaloneTimerMax, setStandaloneTimerMax] = useState(180);
-  const [standaloneTimerRunning, setStandaloneTimerRunning] = useState(false);
-  const [standaloneTimerInput, setStandaloneTimerInput] = useState(180);
-  const standaloneTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // 주가 정보 이미지 모달 상태
   const [showStockPriceImage, setShowStockPriceImage] = useState(false);
-
-  // 팀 관리 모달 상태
-  const [showTeamManagement, setShowTeamManagement] = useState(false);
 
   // 팀 이름 수정 상태
   const [editingTeamId, setEditingTeamId] = useState<string | null>(null);
@@ -318,94 +290,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     setEditingTeamName('');
   };
 
-  // 투자 테이블 열 때 현재 라운드로 초기화 및 공개 상태 리셋
-  useEffect(() => {
-    if (showInvestmentTable && gameState) {
-      setSelectedTableRound(gameState.currentRound);
-      setRevealedTeams(new Set());
-      setIsPriceRevealed(false);
-    }
-  }, [showInvestmentTable, gameState?.currentRound]);
-
-  // 라운드 변경 시 공개 상태 리셋
-  useEffect(() => {
-    setRevealedTeams(new Set());
-    setIsPriceRevealed(false);
-  }, [selectedTableRound]);
-
-  // 독립 타이머 관리
-  useEffect(() => {
-    if (standaloneTimerRunning && standaloneTimerSeconds > 0) {
-      standaloneTimerRef.current = setInterval(() => {
-        setStandaloneTimerSeconds(prev => {
-          if (prev <= 1) {
-            // 타이머 종료
-            setStandaloneTimerRunning(false);
-            // 종료음 재생
-            resumeAudioContext().then(() => {
-              playTimerEndSound();
-              // 3번 더 재생 (총 4번)
-              setTimeout(() => playTimerEndSound(), 800);
-              setTimeout(() => playTimerEndSound(), 1600);
-              setTimeout(() => playTimerEndSound(), 2400);
-            });
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    } else if (standaloneTimerRef.current) {
-      clearInterval(standaloneTimerRef.current);
-    }
-
-    return () => {
-      if (standaloneTimerRef.current) {
-        clearInterval(standaloneTimerRef.current);
-      }
-    };
-  }, [standaloneTimerRunning]);
-
-  // 독립 타이머 시작
-  const startStandaloneTimer = useCallback(() => {
-    setStandaloneTimerSeconds(standaloneTimerInput);
-    setStandaloneTimerMax(standaloneTimerInput);
-    setStandaloneTimerRunning(true);
-  }, [standaloneTimerInput]);
-
-  // 독립 타이머 일시정지/재개
-  const toggleStandaloneTimer = useCallback(() => {
-    setStandaloneTimerRunning(prev => !prev);
-  }, []);
-
-  // 독립 타이머 리셋
-  const resetStandaloneTimer = useCallback(() => {
-    setStandaloneTimerRunning(false);
-    setStandaloneTimerSeconds(standaloneTimerInput);
-    setStandaloneTimerMax(standaloneTimerInput);
-  }, [standaloneTimerInput]);
-
-  // 독립 타이머 시간 포맷
-  const formatStandaloneTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  // 금액 포맷 (한국식: #억#,###만원 또는 #,###만원)
-  const formatKoreanMoney = (amount: number): string => {
-    const uk = Math.floor(amount / 100000000); // 억
-    const man = Math.floor((amount % 100000000) / 10000); // 만
-
-    if (uk > 0) {
-      if (man > 0) {
-        return `${uk}억${man.toLocaleString()}만원`;
-      }
-      return `${uk}억원`;
-    }
-    return `${man.toLocaleString()}만원`;
-  };
-
-  // 기존 타이머 관리
+  // 타이머 관리
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (gameState?.isTimerRunning && gameState?.timerSeconds > 0) {
@@ -427,33 +312,30 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   const startInvestment = async () => {
     if (!gameState) return;
 
-    const timerSeconds = timerInput * 60; // 분 → 초 변환
     await updateGameState((current) => ({
       ...current,
-      timerSeconds: timerSeconds,
-      timerMaxSeconds: timerSeconds,
+      timerSeconds: timerInput,
+      timerMaxSeconds: timerInput,
       isTimerRunning: true,
       isInvestmentLocked: false
     }));
   };
 
-  // 투자 확정/해제 토글 (확정 시 다음 라운드 가격으로 수익률 계산 및 자동 매도)
-  const toggleInvestmentConfirm = async () => {
+  // 투자 잠금/해제
+  const toggleInvestmentLock = async () => {
     if (!gameState) return;
 
-    // 이미 확정된 경우 → 확정 해제 (투자 가능 상태로)
-    if (gameState.isInvestmentConfirmed) {
-      await updateGameState((current) => ({
-        ...current,
-        isInvestmentLocked: false,
-        isInvestmentConfirmed: false,
-        isPortfolioLocked: false,
-        isTimerRunning: true
-      }));
-      return;
-    }
+    await updateGameState((current) => ({
+      ...current,
+      isInvestmentLocked: !current.isInvestmentLocked,
+      isTimerRunning: current.isInvestmentLocked
+    }));
+  };
 
-    // 확정되지 않은 경우 → 투자 확정
+  // 투자 확정 (다음 라운드 가격으로 수익률 계산 및 자동 매도)
+  const confirmInvestment = async () => {
+    if (!gameState) return;
+
     await updateGameState((current) => {
       const currentRound = current.currentRound;
       // 결과 가격 인덱스: prices[currentRound] (투자 시 prices[currentRound-1], 결과는 다음 인덱스)
@@ -545,13 +427,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
     });
   };
 
-  // 결과 발표 (사용자에게 공개) - 이미 공개된 경우 결과 모달 표시
+  // 결과 발표 (사용자에게 공개)
   const revealResults = async () => {
     if (!gameState) return;
 
-    // 이미 결과가 공개된 경우 결과 모달 열기
+    // 이미 결과가 공개된 경우 모달만 다시 표시
     if (gameState.revealedResults) {
       setShowResultModal(true);
+      setResultStep('stocks');
       return;
     }
 
@@ -560,6 +443,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
       revealedResults: true,
       isPortfolioLocked: false
     }));
+
+    setShowResultModal(true);
+    setResultStep('stocks');
   };
 
   // 다음 라운드 진행 (투자 확정 시 이미 자동 매도 완료)
@@ -876,33 +762,39 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
       return bRate - aRate;
     });
 
-    // 대시보드로 돌아가기 (게임 상태 유지하면서 라운드 보기)
-    const goBackToDashboard = async () => {
-      await updateGameState((current) => ({
-        ...current,
-        currentStatus: GameStatus.ROUND_4, // 마지막 라운드 상태로 변경
-        currentStep: GameStep.RESULT,
-        revealedResults: true
-      }));
+    // AI 분석 함수
+    const handleFinalAnalyze = async (team: Team) => {
+      setAnalyzingTeamId(team.id);
+      const stockPrices: { [stockId: string]: number[] } = {};
+      gameState.stocks.forEach(s => {
+        stockPrices[s.id] = s.prices;
+      });
+
+      const report = await analyzeTeamPerformance({
+        teamNumber: team.number,
+        teamName: team.teamName,
+        unlockedCards: team.unlockedCards,
+        roundResults: team.roundResults,
+        finalCash: team.currentCash,
+        portfolio: team.portfolio,
+        stockPrices,
+        maxRounds: gameState.maxRounds,
+        transactionHistory: team.transactionHistory || []
+      });
+
+      setAnalysisReports(prev => ({ ...prev, [team.id]: report }));
+      setAnalyzingTeamId(null);
     };
 
     return (
       <div className="min-h-screen p-6 iso-grid relative z-10">
         <div className="max-w-3xl mx-auto">
-          <div className="flex items-center justify-between mb-6">
-            <button
-              onClick={() => setView('room-list')}
-              className="text-slate-400 hover:text-white transition-colors flex items-center gap-2"
-            >
-              ← 방 목록으로
-            </button>
-            <button
-              onClick={goBackToDashboard}
-              className="px-4 py-2 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-500 transition-colors flex items-center gap-2"
-            >
-              📊 대시보드로 돌아가기
-            </button>
-          </div>
+          <button
+            onClick={() => setView('room-list')}
+            className="mb-6 text-slate-400 hover:text-white transition-colors flex items-center gap-2"
+          >
+            ← 방 목록으로
+          </button>
 
           <div className="iso-card bg-gradient-to-br from-slate-800/90 to-slate-900/95 p-10 rounded-3xl border border-slate-700/50">
             <div className="text-center mb-10">
@@ -916,6 +808,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
             <div className="space-y-4">
               {sortedTeams.map((team, idx) => {
                 const finalResult = team.roundResults[team.roundResults.length - 1];
+                const hasReport = !!analysisReports[team.id];
+                const isAnalyzing = analyzingTeamId === team.id;
 
                 return (
                   <div
@@ -945,325 +839,153 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                         <p className="text-sm text-slate-500">누적 수익률</p>
                       </div>
                     </div>
+
+                    {/* AI 투자 성과 분석 버튼 */}
+                    <div className="mt-4 flex justify-end">
+                      {hasReport ? (
+                        <button
+                          onClick={() => setShowAnalysisModal(team.id)}
+                          className="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-sm font-bold hover:from-emerald-600 hover:to-teal-600 transition-all shadow-lg shadow-emerald-500/30"
+                        >
+                          📊 AI 투자 성과 분석 보기
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleFinalAnalyze(team)}
+                          disabled={isAnalyzing}
+                          className={`px-4 py-2 rounded-xl text-sm font-bold transition-all ${
+                            isAnalyzing
+                              ? 'bg-slate-600/50 text-slate-400 cursor-wait'
+                              : 'bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600 shadow-lg shadow-purple-500/30'
+                          }`}
+                        >
+                          {isAnalyzing ? (
+                            <span className="flex items-center gap-2">
+                              <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                              AI 분석중...
+                            </span>
+                          ) : '🤖 AI 투자 성과 분석'}
+                        </button>
+                      )}
+                    </div>
                   </div>
                 );
               })}
             </div>
-
-            {/* AI 종합 투자 분석 버튼 */}
-            <div className="mt-8">
-              {comprehensiveReport ? (
-                <button
-                  onClick={() => setShowComprehensiveModal(true)}
-                  className="btn-3d w-full bg-gradient-to-r from-emerald-500 to-teal-500 text-white py-4 rounded-xl font-bold text-lg hover:from-emerald-600 hover:to-teal-600 transition-all shadow-lg shadow-emerald-500/30"
-                >
-                  📊 AI 종합 투자 분석 보고서 보기
-                </button>
-              ) : (
-                <button
-                  onClick={async () => {
-                    setIsAnalyzingComprehensive(true);
-                    const stockPrices: { [stockId: string]: number[] } = {};
-                    gameState.stocks.forEach(s => {
-                      stockPrices[s.id] = s.prices;
-                    });
-
-                    const report = await analyzeComprehensivePerformance({
-                      roomName: selectedRoom.name,
-                      teams: gameState.teams.map(team => ({
-                        teamNumber: team.number,
-                        teamName: team.teamName,
-                        leaderName: team.leaderName || '',
-                        unlockedCards: team.unlockedCards,
-                        roundResults: team.roundResults,
-                        finalCash: team.currentCash,
-                        portfolio: team.portfolio,
-                        transactionHistory: team.transactionHistory || []
-                      })),
-                      stocks: gameState.stocks.map(stock => ({
-                        id: stock.id,
-                        name: stock.name,
-                        prices: stock.prices
-                      })),
-                      maxRounds: gameState.maxRounds
-                    });
-
-                    setComprehensiveReport(report);
-                    setIsAnalyzingComprehensive(false);
-                    setShowComprehensiveModal(true);
-                  }}
-                  disabled={isAnalyzingComprehensive}
-                  className={`btn-3d w-full py-4 rounded-xl font-bold text-lg transition-all ${
-                    isAnalyzingComprehensive
-                      ? 'bg-slate-600/50 text-slate-400 cursor-wait'
-                      : 'bg-gradient-to-r from-purple-500 to-pink-500 text-white hover:from-purple-600 hover:to-pink-600 shadow-lg shadow-purple-500/30 animate-pulse-glow'
-                  }`}
-                >
-                  {isAnalyzingComprehensive ? (
-                    <span className="flex items-center justify-center gap-3">
-                      <span className="w-5 h-5 border-3 border-white border-t-transparent rounded-full animate-spin"></span>
-                      AI 종합 분석 중...
-                    </span>
-                  ) : '🤖 AI 종합 투자 분석'}
-                </button>
-              )}
-            </div>
           </div>
         </div>
 
-        {/* AI 종합 분석 모달 */}
-        {showComprehensiveModal && comprehensiveReport && (
-          <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
-            <div id="comprehensive-report" className="iso-card bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-auto border-2 border-purple-500/50">
-              <div className="p-8">
-                {/* 헤더 */}
-                <div className="flex justify-between items-center mb-8">
-                  <h2 className="text-3xl font-black text-white flex items-center gap-3">
-                    📊 AI 종합 투자 분석 보고서
-                  </h2>
-                  <button
-                    onClick={() => setShowComprehensiveModal(false)}
-                    className="p-3 rounded-xl bg-slate-700 hover:bg-slate-600 text-white transition-colors"
-                  >
-                    ✕
-                  </button>
-                </div>
-
-                {/* 게임 정보 */}
-                <div className="mb-6 p-4 rounded-xl bg-gradient-to-r from-indigo-500/20 to-purple-500/20 border border-indigo-500/30">
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <h3 className="text-xl font-bold text-white">{comprehensiveReport.gameName}</h3>
-                      <p className="text-sm text-slate-400">총 {comprehensiveReport.maxRounds}라운드 | {comprehensiveReport.totalTeams}팀 참가</p>
-                    </div>
-                    <p className="text-xs text-slate-500">
-                      분석 시간: {new Date(comprehensiveReport.timestamp).toLocaleString('ko-KR')}
-                    </p>
-                  </div>
-                </div>
-
-                {/* 전체 종합 분석 */}
-                <div className="mb-8 p-6 rounded-xl bg-slate-700/50 border border-slate-600/50">
-                  <h3 className="text-xl font-black text-white mb-4 flex items-center gap-2">
-                    🎯 전체 종합 평가
-                  </h3>
-                  <p className="text-slate-300 mb-6 leading-relaxed">{comprehensiveReport.overallSummary}</p>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* 잘한 점 */}
-                    <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
-                      <h4 className="text-sm font-bold text-emerald-300 mb-3">✅ 전체적으로 잘한 점</h4>
-                      <ul className="space-y-2">
-                        {comprehensiveReport.overallStrengths.map((s, i) => (
-                          <li key={i} className="text-sm text-slate-300 flex items-start gap-2">
-                            <span className="text-emerald-400 mt-0.5">•</span>
-                            <span>{s}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-
-                    {/* 아쉬운 점 */}
-                    <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/30">
-                      <h4 className="text-sm font-bold text-rose-300 mb-3">⚠️ 전체적으로 아쉬운 점</h4>
-                      <ul className="space-y-2">
-                        {comprehensiveReport.overallWeaknesses.map((w, i) => (
-                          <li key={i} className="text-sm text-slate-300 flex items-start gap-2">
-                            <span className="text-rose-400 mt-0.5">•</span>
-                            <span>{w}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 팀별 분석 */}
-                <div className="mb-6">
-                  <h3 className="text-xl font-black text-white mb-4 flex items-center gap-2">
-                    👥 팀별 상세 분석
-                  </h3>
-                  <div className="space-y-4">
-                    {comprehensiveReport.teamAnalyses.map((team) => (
-                      <div
-                        key={team.teamNumber}
-                        className={`p-5 rounded-xl border ${
-                          team.rank === 1 ? 'bg-gradient-to-r from-amber-500/10 to-yellow-500/10 border-amber-500/30' :
-                          team.rank === 2 ? 'bg-gradient-to-r from-slate-400/10 to-gray-400/10 border-slate-400/30' :
-                          team.rank === 3 ? 'bg-gradient-to-r from-orange-600/10 to-amber-700/10 border-orange-600/30' :
-                          'bg-slate-700/30 border-slate-600/30'
-                        }`}
-                      >
-                        <div className="flex items-center gap-3 mb-4">
-                          <span className="text-2xl">
-                            {team.rank === 1 ? '🥇' : team.rank === 2 ? '🥈' : team.rank === 3 ? '🥉' : `${team.rank}위`}
-                          </span>
-                          <div className="flex-1">
-                            <p className="font-bold text-white">{team.teamName}</p>
-                            <p className="text-xs text-slate-400">{team.investmentStyle}</p>
-                          </div>
-                          <p className={`text-xl font-black ${team.profitRate >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                            {team.profitRate >= 0 ? '+' : ''}{team.profitRate.toFixed(1)}%
-                          </p>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          <div className="p-3 rounded-lg bg-emerald-500/5 border border-emerald-500/20">
-                            <p className="text-xs font-bold text-emerald-300 mb-2">잘한 점</p>
-                            <ul className="space-y-1">
-                              {team.strengths.map((s, i) => (
-                                <li key={i} className="text-xs text-slate-300 flex items-start gap-1.5">
-                                  <span className="text-emerald-400">•</span>
-                                  {s}
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                          <div className="p-3 rounded-lg bg-rose-500/5 border border-rose-500/20">
-                            <p className="text-xs font-bold text-rose-300 mb-2">아쉬운 점</p>
-                            <ul className="space-y-1">
-                              {team.weaknesses.map((w, i) => (
-                                <li key={i} className="text-xs text-slate-300 flex items-start gap-1.5">
-                                  <span className="text-rose-400">•</span>
-                                  {w}
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        </div>
+        {/* AI 분석 리포트 모달 */}
+        {showAnalysisModal && analysisReports[showAnalysisModal] && (
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+            <div className="iso-card bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-auto border border-indigo-500/50">
+              <div className="p-6">
+                {(() => {
+                  const report = analysisReports[showAnalysisModal];
+                  const team = gameState?.teams.find(t => t.id === showAnalysisModal);
+                  return (
+                    <>
+                      <div className="flex justify-between items-center mb-6">
+                        <h2 className="text-xl font-black text-white flex items-center gap-2">
+                          📊 {team?.teamName} AI 투자 성과 분석
+                        </h2>
+                        <button
+                          onClick={() => setShowAnalysisModal(null)}
+                          className="p-2 rounded-lg bg-slate-700/50 text-slate-400 hover:text-white transition-colors"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/>
+                          </svg>
+                        </button>
                       </div>
-                    ))}
-                  </div>
-                </div>
 
-                {/* 버튼 그룹 */}
-                <div className="flex gap-4">
-                  <button
-                    onClick={() => {
-                      // PDF 다운로드 기능
-                      const printContent = document.getElementById('comprehensive-report');
-                      if (printContent) {
-                        const printWindow = window.open('', '_blank');
-                        if (printWindow) {
-                          printWindow.document.write(`
-                            <!DOCTYPE html>
-                            <html>
-                            <head>
-                              <title>AI 종합 투자 분석 보고서 - ${comprehensiveReport.gameName}</title>
-                              <style>
-                                * { margin: 0; padding: 0; box-sizing: border-box; }
-                                body {
-                                  font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif;
-                                  padding: 40px;
-                                  background: white;
-                                  color: #1e293b;
-                                  line-height: 1.6;
-                                }
-                                h1 { font-size: 28px; margin-bottom: 20px; color: #1e293b; }
-                                h2 { font-size: 22px; margin: 30px 0 15px; color: #334155; border-bottom: 2px solid #e2e8f0; padding-bottom: 8px; }
-                                h3 { font-size: 18px; margin: 20px 0 10px; color: #475569; }
-                                h4 { font-size: 14px; margin: 15px 0 8px; color: #64748b; font-weight: 600; }
-                                p { margin: 10px 0; color: #475569; }
-                                ul { list-style: none; padding-left: 0; }
-                                li { margin: 8px 0; padding-left: 20px; position: relative; }
-                                li:before { content: "•"; position: absolute; left: 0; color: #6366f1; font-weight: bold; }
-                                .header { text-align: center; margin-bottom: 40px; padding-bottom: 20px; border-bottom: 3px solid #6366f1; }
-                                .header h1 { color: #6366f1; }
-                                .meta { font-size: 14px; color: #94a3b8; margin-top: 10px; }
-                                .section { margin: 30px 0; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; }
-                                .strengths { background: #f0fdf4; border-color: #86efac; }
-                                .weaknesses { background: #fef2f2; border-color: #fca5a5; }
-                                .strengths h4 { color: #16a34a; }
-                                .weaknesses h4 { color: #dc2626; }
-                                .strengths li:before { color: #16a34a; }
-                                .weaknesses li:before { color: #dc2626; }
-                                .team { margin: 20px 0; padding: 20px; border: 1px solid #e2e8f0; border-radius: 12px; background: #f8fafc; }
-                                .team-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
-                                .team-rank { font-size: 24px; }
-                                .team-name { font-size: 18px; font-weight: bold; }
-                                .team-style { font-size: 12px; color: #94a3b8; }
-                                .team-profit { font-size: 20px; font-weight: bold; }
-                                .team-profit.positive { color: #16a34a; }
-                                .team-profit.negative { color: #dc2626; }
-                                .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
-                                .grid-item { padding: 15px; border-radius: 8px; }
-                                @media print {
-                                  body { padding: 20px; }
-                                  .team { break-inside: avoid; }
-                                }
-                              </style>
-                            </head>
-                            <body>
-                              <div class="header">
-                                <h1>AI 종합 투자 분석 보고서</h1>
-                                <p style="font-size: 18px; margin-top: 10px;">${comprehensiveReport.gameName}</p>
-                                <p class="meta">총 ${comprehensiveReport.maxRounds}라운드 | ${comprehensiveReport.totalTeams}팀 참가 | 분석일시: ${new Date(comprehensiveReport.timestamp).toLocaleString('ko-KR')}</p>
-                              </div>
+                      {/* 점수 */}
+                      <div className="mb-6 p-4 rounded-xl bg-gradient-to-br from-indigo-500/20 to-purple-500/20 border border-indigo-500/30 text-center">
+                        <p className="text-xs text-indigo-300 uppercase font-bold mb-2">Overall Score</p>
+                        <p className="text-5xl font-black text-white">{report.overallScore}</p>
+                        <p className="text-xs text-slate-400 mt-1">/ 100점</p>
+                      </div>
 
-                              <h2>🎯 전체 종합 평가</h2>
-                              <p style="font-size: 16px; margin: 20px 0;">${comprehensiveReport.overallSummary}</p>
+                      {/* 요약 */}
+                      <div className="mb-4 p-4 rounded-xl bg-slate-700/30">
+                        <h3 className="text-sm font-bold text-white mb-2">📝 요약</h3>
+                        <p className="text-sm text-slate-300">{report.summary}</p>
+                      </div>
 
-                              <div class="grid" style="margin-top: 20px;">
-                                <div class="section strengths">
-                                  <h4>✅ 전체적으로 잘한 점</h4>
-                                  <ul>
-                                    ${comprehensiveReport.overallStrengths.map(s => `<li>${s}</li>`).join('')}
-                                  </ul>
-                                </div>
-                                <div class="section weaknesses">
-                                  <h4>⚠️ 전체적으로 아쉬운 점</h4>
-                                  <ul>
-                                    ${comprehensiveReport.overallWeaknesses.map(w => `<li>${w}</li>`).join('')}
-                                  </ul>
-                                </div>
-                              </div>
+                      {/* 강점 */}
+                      {report.strengths.length > 0 && (
+                        <div className="mb-4 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30">
+                          <h3 className="text-sm font-bold text-emerald-300 mb-2">✅ 강점</h3>
+                          <ul className="space-y-1">
+                            {report.strengths.map((s, i) => (
+                              <li key={i} className="text-sm text-slate-300 flex items-start gap-2">
+                                <span className="text-emerald-400">•</span>
+                                {s}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
 
-                              <h2 style="margin-top: 40px;">👥 팀별 상세 분석</h2>
-                              ${comprehensiveReport.teamAnalyses.map(team => `
-                                <div class="team">
-                                  <div class="team-header">
-                                    <div>
-                                      <span class="team-rank">${team.rank === 1 ? '🥇' : team.rank === 2 ? '🥈' : team.rank === 3 ? '🥉' : team.rank + '위'}</span>
-                                      <span class="team-name" style="margin-left: 10px;">${team.teamName}</span>
-                                      <p class="team-style">${team.investmentStyle}</p>
-                                    </div>
-                                    <span class="team-profit ${team.profitRate >= 0 ? 'positive' : 'negative'}">${team.profitRate >= 0 ? '+' : ''}${team.profitRate.toFixed(1)}%</span>
-                                  </div>
-                                  <div class="grid">
-                                    <div class="grid-item" style="background: #f0fdf4;">
-                                      <h4 style="color: #16a34a; margin-bottom: 10px;">잘한 점</h4>
-                                      <ul>${team.strengths.map(s => `<li style="font-size: 13px;">${s}</li>`).join('')}</ul>
-                                    </div>
-                                    <div class="grid-item" style="background: #fef2f2;">
-                                      <h4 style="color: #dc2626; margin-bottom: 10px;">아쉬운 점</h4>
-                                      <ul>${team.weaknesses.map(w => `<li style="font-size: 13px;">${w}</li>`).join('')}</ul>
-                                    </div>
-                                  </div>
-                                </div>
-                              `).join('')}
+                      {/* 개선점 */}
+                      {report.weaknesses.length > 0 && (
+                        <div className="mb-4 p-4 rounded-xl bg-rose-500/10 border border-rose-500/30">
+                          <h3 className="text-sm font-bold text-rose-300 mb-2">⚠️ 개선점</h3>
+                          <ul className="space-y-1">
+                            {report.weaknesses.map((w, i) => (
+                              <li key={i} className="text-sm text-slate-300 flex items-start gap-2">
+                                <span className="text-rose-400">•</span>
+                                {w}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
 
-                              <p style="text-align: center; color: #94a3b8; margin-top: 40px; font-size: 12px;">
-                                Generated by AI Investment Analyst | Running-Man Stock Game
-                              </p>
-                            </body>
-                            </html>
-                          `);
-                          printWindow.document.close();
-                          printWindow.print();
-                        }
-                      }
-                    }}
-                    className="flex-1 btn-3d bg-gradient-to-r from-blue-500 to-cyan-500 text-white py-4 rounded-xl font-bold text-lg hover:from-blue-600 hover:to-cyan-600 transition-all"
-                  >
-                    📄 PDF로 저장/인쇄
-                  </button>
-                  <button
-                    onClick={() => setShowComprehensiveModal(false)}
-                    className="flex-1 btn-3d bg-gradient-to-r from-slate-600 to-slate-700 text-white py-4 rounded-xl font-bold text-lg hover:from-slate-500 hover:to-slate-600 transition-all"
-                  >
-                    닫기
-                  </button>
-                </div>
+                      {/* 추천 */}
+                      {report.recommendations.length > 0 && (
+                        <div className="mb-4 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30">
+                          <h3 className="text-sm font-bold text-amber-300 mb-2">💡 추천</h3>
+                          <ul className="space-y-1">
+                            {report.recommendations.map((r, i) => (
+                              <li key={i} className="text-sm text-slate-300 flex items-start gap-2">
+                                <span className="text-amber-400">•</span>
+                                {r}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {/* 정보카드 기반 투자 분석 */}
+                      {report.infoCardAnalysis && report.infoCardAnalysis.length > 0 && (
+                        <div className="mb-4 p-4 rounded-xl bg-gradient-to-br from-purple-500/10 to-pink-500/10 border border-purple-500/30">
+                          <h3 className="text-sm font-bold text-purple-300 mb-2">🔍 정보카드 vs 협상 투자 분석</h3>
+                          <ul className="space-y-2">
+                            {report.infoCardAnalysis.map((analysis, i) => (
+                              <li key={i} className="text-sm text-slate-300 flex items-start gap-2">
+                                <span className="text-purple-400">•</span>
+                                {analysis}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {/* 분석 시간 */}
+                      <p className="text-xs text-slate-500 text-center mt-4">
+                        분석 시간: {new Date(report.timestamp).toLocaleString('ko-KR')}
+                      </p>
+
+                      <button
+                        onClick={() => setShowAnalysisModal(null)}
+                        className="btn-3d w-full mt-6 bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-3 rounded-xl font-bold"
+                      >
+                        닫기
+                      </button>
+                    </>
+                  );
+                })()}
               </div>
             </div>
           </div>
@@ -1395,12 +1117,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                 >
                   📈 주가 정보
                 </button>
-                <button
-                  onClick={() => setShowTeamManagement(true)}
-                  className="bg-emerald-500/20 text-emerald-300 px-3 py-1 rounded-full text-xs font-bold border border-emerald-500/30 hover:bg-emerald-500/30 transition-colors"
-                >
-                  ⚙️ 팀 수정
-                </button>
               </div>
             </div>
 
@@ -1515,12 +1231,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
             <div className="space-y-4">
               {/* 타이머 설정 */}
               <div>
-                <label className="block text-xs font-bold text-slate-400 mb-2 uppercase">타이머 (분)</label>
+                <label className="block text-xs font-bold text-slate-400 mb-2 uppercase">타이머 (초)</label>
                 <input
                   type="number"
                   value={timerInput}
-                  onChange={e => setTimerInput(Math.max(1, Number(e.target.value)))}
-                  min="1"
+                  onChange={e => setTimerInput(Number(e.target.value))}
                   className="w-full px-4 py-3 rounded-xl bg-slate-700/50 border border-slate-600/50 text-white font-bold text-center text-xl outline-none focus:border-indigo-500"
                 />
               </div>
@@ -1528,16 +1243,26 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               {/* 타이머 시작 */}
               <button
                 onClick={startInvestment}
-                disabled={gameState.currentStep !== GameStep.INVESTMENT || gameState.isTimerRunning}
+                disabled={gameState.currentStep !== GameStep.INVESTMENT}
                 className={`w-full py-4 rounded-xl font-bold transition-all ${
-                  gameState.currentStep !== GameStep.INVESTMENT
-                    ? 'bg-slate-700/50 text-slate-500 cursor-not-allowed'
-                    : gameState.isTimerRunning
-                      ? 'bg-amber-500/20 text-amber-300 border-2 border-amber-500/50 cursor-not-allowed animate-pulse'
-                      : 'btn-3d bg-gradient-to-r from-emerald-500 to-teal-500 text-white'
+                  gameState.currentStep === GameStep.INVESTMENT
+                    ? 'btn-3d bg-gradient-to-r from-emerald-500 to-teal-500 text-white'
+                    : 'bg-slate-700/50 text-slate-500 cursor-not-allowed'
                 }`}
               >
-                {gameState.isTimerRunning ? '⏳ 투자 결정중...' : '🚀 투자 시작'}
+                🚀 투자 시작
+              </button>
+
+              {/* 투자 잠금/해제 */}
+              <button
+                onClick={toggleInvestmentLock}
+                className={`w-full py-4 rounded-xl font-bold transition-all ${
+                  gameState.isInvestmentLocked
+                    ? 'bg-rose-500/20 text-rose-300 border-2 border-rose-500/30 hover:bg-rose-500/30'
+                    : 'bg-emerald-500/20 text-emerald-300 border-2 border-emerald-500/30 hover:bg-emerald-500/30'
+                }`}
+              >
+                {gameState.isInvestmentLocked ? '🔒 투자 잠금됨 (클릭하여 열기)' : '🔓 투자 진행중 (클릭하여 잠금)'}
               </button>
 
               {/* 타이머 프로그레스 */}
@@ -1556,32 +1281,19 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                 </div>
               )}
 
-              {/* 투자 확정/해제 버튼 (투자 잠금 기능 통합) */}
+              {/* 투자 확정 버튼 */}
               <button
-                onClick={toggleInvestmentConfirm}
-                disabled={gameState.currentStep !== GameStep.INVESTMENT}
+                onClick={confirmInvestment}
+                disabled={gameState.currentStep !== GameStep.INVESTMENT || gameState.isInvestmentConfirmed}
                 className={`w-full py-4 rounded-xl font-bold transition-all mt-4 ${
-                  gameState.currentStep !== GameStep.INVESTMENT
-                    ? 'bg-slate-700/50 text-slate-500 cursor-not-allowed'
+                  gameState.currentStep === GameStep.INVESTMENT && !gameState.isInvestmentConfirmed
+                    ? 'btn-3d bg-gradient-to-r from-amber-500 to-orange-500 text-white'
                     : gameState.isInvestmentConfirmed
-                      ? 'bg-emerald-500/20 text-emerald-300 border-2 border-emerald-500/30 hover:bg-emerald-500/30'
-                      : 'btn-3d bg-gradient-to-r from-amber-500 to-orange-500 text-white'
+                      ? 'bg-emerald-500/20 text-emerald-300 border-2 border-emerald-500/30 cursor-not-allowed'
+                      : 'bg-slate-700/50 text-slate-500 cursor-not-allowed'
                 }`}
               >
-                {gameState.isInvestmentConfirmed ? '✅ 투자 확정 완료 (클릭하여 해제)' : '💎 투자 확정'}
-              </button>
-
-              {/* 주식현황판 보기 버튼 (결과발표 위에) */}
-              <button
-                onClick={() => setShowInvestmentTable(true)}
-                disabled={!gameState.isInvestmentConfirmed}
-                className={`w-full py-4 rounded-xl font-bold transition-all ${
-                  gameState.isInvestmentConfirmed
-                    ? 'btn-3d bg-gradient-to-r from-indigo-500 to-blue-500 text-white'
-                    : 'bg-slate-700/50 text-slate-500 cursor-not-allowed'
-                }`}
-              >
-                📊 주식현황판 보기
+                {gameState.isInvestmentConfirmed ? '✅ 투자 확정 완료' : '💎 투자 확정'}
               </button>
 
               {/* 결과발표 버튼 */}
@@ -1598,18 +1310,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               >
                 {gameState.revealedResults ? '📊 결과 다시보기' : '📊 결과발표'}
               </button>
-
-              {/* 다음 라운드 버튼 - 결과 공개 후에만 표시 */}
-              {gameState.revealedResults && gameState.currentStep === GameStep.RESULT && (
-                <button
-                  onClick={autoSellAndNextRound}
-                  className="w-full py-4 rounded-xl font-bold transition-all btn-3d bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-500 text-white animate-pulse-glow"
-                >
-                  {gameState.currentRound >= gameState.maxRounds
-                    ? '🏆 게임 종료 및 최종 결과 확인'
-                    : `🚀 Round ${gameState.currentRound + 1} 시작하기`}
-                </button>
-              )}
             </div>
           </div>
         </div>
@@ -1624,7 +1324,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                 onClick={() => setShowInvestmentTable(true)}
                 className="px-3 py-1.5 rounded-lg bg-indigo-500/20 text-indigo-300 text-xs font-bold hover:bg-indigo-500/30 transition-colors border border-indigo-500/30"
               >
-                📊 주식현황판
+                📊 테이블 보기
               </button>
               <span className="text-xs text-slate-500 font-normal">
                 {gameState.currentStep === GameStep.RESULT ? '✅ 투자 완료' : '실시간 업데이트'}
@@ -2083,315 +1783,78 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
         </div>
       )}
 
-      {/* 투자 테이블 모달 - 팀별 종목 보유 현황 (확대 버전) */}
+      {/* 투자 테이블 모달 - 팀별 종목 보유 현황 */}
       {showInvestmentTable && (
-        <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-start justify-center p-1 overflow-auto">
-          <div className="iso-card bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl w-full max-w-[98vw] border border-slate-700/50 my-1">
-            <div className="p-4 md:p-6">
-              {/* 헤더 */}
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-3xl md:text-4xl font-black text-white flex items-center gap-3">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-start justify-center p-2 overflow-auto">
+          <div className="iso-card bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl max-w-[95vw] w-full border border-slate-700/50 my-2">
+            <div className="p-3 md:p-5">
+              <div className="flex justify-between items-center mb-3">
+                <h2 className="text-lg font-black text-white flex items-center gap-2">
                   📊 전체 투자 현황 테이블
+                  <span className="text-xs font-normal text-slate-400 ml-1">Round {gameState.currentRound}</span>
                 </h2>
                 <button
                   onClick={() => setShowInvestmentTable(false)}
-                  className="p-3 rounded-lg bg-slate-700/50 text-slate-400 hover:text-white transition-colors"
+                  className="p-2 rounded-lg bg-slate-700/50 text-slate-400 hover:text-white transition-colors"
                 >
-                  <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/>
                   </svg>
                 </button>
               </div>
 
-              {/* 라운드 탭 & 컨트롤 버튼 */}
-              <div className="flex flex-wrap items-center gap-3 mb-4">
-                <div className="flex gap-2 overflow-x-auto pb-2">
-                  {Array.from({ length: gameState.currentRound }, (_, i) => i + 1).map(round => (
-                    <button
-                      key={round}
-                      onClick={() => setSelectedTableRound(round)}
-                      className={`px-6 py-3 font-black text-xl whitespace-nowrap transition-all rounded-xl ${
-                        selectedTableRound === round
-                          ? 'bg-indigo-600 text-white border-3 border-indigo-400'
-                          : 'bg-slate-700/50 text-slate-400 border-3 border-slate-600 hover:text-white hover:border-slate-500'
-                      }`}
-                    >
-                      {round}R {round === gameState.currentRound ? '(현재)' : ''}
-                    </button>
-                  ))}
-                </div>
-
-                {/* 그래프 순위 확인 버튼 */}
-                <button
-                  onClick={() => setShowRankingGraph(true)}
-                  disabled={!isPriceRevealed || revealedTeams.size === 0}
-                  className={`ml-auto px-6 py-3 rounded-xl font-black text-xl transition-all ${
-                    isPriceRevealed && revealedTeams.size > 0
-                      ? 'bg-purple-600 text-white border-3 border-purple-400 hover:bg-purple-500'
-                      : 'bg-slate-600 text-slate-400 border-3 border-slate-500 cursor-not-allowed'
-                  }`}
-                >
-                  📊 그래프 순위 확인
-                </button>
-
-                {/* 현재 주가 확인 버튼 */}
-                <button
-                  onClick={async () => {
-                    if (!isPriceRevealed) {
-                      // 주가 공개 시 팡파레 사운드 재생
-                      await resumeAudioContext();
-                      playFinalResultSound();
-                    }
-                    setIsPriceRevealed(!isPriceRevealed);
-                  }}
-                  className={`px-6 py-3 rounded-xl font-black text-xl transition-all ${
-                    isPriceRevealed
-                      ? 'bg-amber-600 text-white border-3 border-amber-400'
-                      : 'bg-rose-600 text-white border-3 border-rose-400 animate-pulse'
-                  }`}
-                >
-                  {isPriceRevealed ? '📈 주가 변동 적용됨' : '🔓 현재 주가 확인'}
-                </button>
-
-                {/* 전체 공개 / 초기화 버튼 */}
-                <button
-                  onClick={() => {
-                    if (revealedTeams.size === gameState.teams.length) {
-                      setRevealedTeams(new Set());
-                      setIsPriceRevealed(false); // 주가 공개도 초기화
-                    } else {
-                      setRevealedTeams(new Set(gameState.teams.map(t => t.id)));
-                    }
-                  }}
-                  className={`px-6 py-3 rounded-xl font-black text-xl transition-all ${
-                    revealedTeams.size === gameState.teams.length
-                      ? 'bg-slate-600 text-white border-3 border-slate-400'
-                      : 'bg-emerald-600 text-white border-3 border-emerald-400'
-                  }`}
-                >
-                  {revealedTeams.size === gameState.teams.length ? '🔄 초기화' : '👁️ 전체 공개'}
-                </button>
-              </div>
-
-              {/* 색상 범례 */}
-              <div className="mb-4 p-4 rounded-xl bg-slate-700/30 border border-slate-600/50">
-                <p className="text-xl font-black text-white mb-3">색상 안내:</p>
-                <div className="flex flex-wrap gap-6 text-lg">
-                  <span className="flex items-center gap-2">
-                    <span className="w-8 h-8 bg-emerald-500/50 border-3 border-emerald-400 rounded flex items-center justify-center text-lg">📋</span>
-                    <span className="text-white font-bold">정보 보유 (공개 전 표시)</span>
-                  </span>
-                  <span className="flex items-center gap-2">
-                    <span className="w-8 h-8 bg-emerald-500/50 border-3 border-emerald-400 rounded"></span>
-                    <span className="text-white font-bold">정보 구매 & 투자</span>
-                  </span>
-                  <span className="flex items-center gap-2">
-                    <span className="w-8 h-8 bg-pink-500/50 border-3 border-pink-400 rounded"></span>
-                    <span className="text-white font-bold">정보 없이 투자</span>
-                  </span>
-                  <span className="flex items-center gap-2">
-                    <span className="w-8 h-8 bg-amber-500/50 border-3 border-amber-400 rounded"></span>
-                    <span className="text-white font-bold">타팀 정보로 투자</span>
-                  </span>
-                  <span className="flex items-center gap-3">
-                    <span className="text-red-500 font-black text-2xl">▲ 상승</span>
-                    <span className="text-blue-500 font-black text-2xl">▼ 하락</span>
-                  </span>
-                </div>
+              {/* 테이블 설명 */}
+              <div className="mb-2 p-2 rounded-lg bg-indigo-500/20 border border-indigo-500/30">
+                <p className="text-indigo-300 text-xs font-medium text-center">
+                  각 팀이 어떤 종목을 몇 주 보유하고 있는지 한눈에 확인할 수 있습니다.
+                </p>
               </div>
 
               {/* 투자 테이블 */}
               <div className="overflow-x-auto">
-                <table className="w-full border-collapse">
+                <table className="w-full border-collapse text-xs">
                   <thead>
                     <tr>
-                      <th className="sticky left-0 bg-slate-800 px-6 py-4 text-left text-2xl font-black text-white uppercase border-b-4 border-slate-500 z-10">
+                      <th className="sticky left-0 bg-slate-800 px-2 py-1.5 text-left text-[10px] font-bold text-slate-400 uppercase border-b border-slate-600/50 z-10">
                         종목
                       </th>
-                      <th className="bg-slate-800 px-6 py-4 text-right text-2xl font-black text-white uppercase border-b-4 border-slate-500">
-                        {isPriceRevealed ? '이전가' : '현재가'}
+                      <th className="bg-slate-800 px-2 py-1.5 text-right text-[10px] font-bold text-slate-400 uppercase border-b border-slate-600/50">
+                        주가
                       </th>
-                      {isPriceRevealed && (
-                        <>
-                          <th className="bg-amber-900/50 px-6 py-4 text-right text-2xl font-black text-amber-300 uppercase border-b-4 border-amber-500">
-                            현재가
-                          </th>
-                          <th className="bg-amber-900/50 px-6 py-4 text-center text-2xl font-black text-amber-300 uppercase border-b-4 border-amber-500">
-                            등락률
-                          </th>
-                        </>
-                      )}
-                      {gameState.teams.map((team, teamIdx) => {
-                        // 팀 총자산 계산 (공개된 경우에만 표시)
-                        const isTeamRevealed = revealedTeams.has(team.id);
-                        let teamTotalAsset = 0;
-                        let teamProfitRate = 0;
-
-                        if (isTeamRevealed && selectedTableRound === gameState.currentRound) {
-                          let portfolioValue = 0;
-                          Object.entries(team.portfolio || {}).forEach(([stockId, qty]) => {
-                            const stock = gameState.stocks.find(s => s.id === stockId);
-                            if (stock && typeof qty === 'number') {
-                              const buyPrice = stock.prices[selectedTableRound - 1];
-                              const nextPrice = stock.prices[selectedTableRound] || buyPrice;
-                              portfolioValue += qty * (isPriceRevealed ? nextPrice : buyPrice);
-                            }
-                          });
-                          teamTotalAsset = team.currentCash + portfolioValue;
-                          teamProfitRate = ((teamTotalAsset - INITIAL_SEED_MONEY) / INITIAL_SEED_MONEY) * 100;
-                        }
-
-                        return (
-                          <th key={team.id} className="bg-slate-800 px-4 py-4 text-center border-b-4 border-slate-500 min-w-[160px]">
-                            <div className="flex flex-col items-center gap-2">
-                              <span className={`text-2xl font-black ${teamColors[teamIdx % teamColors.length].replace('bg-', 'text-').replace('-500', '-400')}`}>
-                                {team.teamName}
-                              </span>
-                              {!isTeamRevealed ? (
-                                <button
-                                  onClick={() => setRevealedTeams(prev => new Set([...prev, team.id]))}
-                                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-bold text-lg transition-all animate-pulse"
-                                >
-                                  👁️ 결과보기
-                                </button>
-                              ) : (
-                                <div className="flex flex-col items-center gap-1">
-                                  <span className="px-3 py-1 bg-emerald-600/50 text-emerald-300 rounded-lg font-bold text-base">
-                                    ✓ 공개됨
-                                  </span>
-                                  {/* 총자산/수익률은 현재주가 공개 후에만 표시 */}
-                                  {isPriceRevealed && (
-                                    <div className="mt-1 text-center">
-                                      <div className="text-amber-400 font-black text-xl">
-                                        {formatKoreanMoney(teamTotalAsset)}
-                                      </div>
-                                      <div className={`text-base font-bold ${teamProfitRate >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                                        {teamProfitRate >= 0 ? '+' : ''}{teamProfitRate.toFixed(1)}%
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                          </th>
-                        );
-                      })}
+                      {gameState.teams.map(team => (
+                        <th key={team.id} className="bg-slate-800 px-2 py-1.5 text-center text-[10px] font-bold text-indigo-300 uppercase border-b border-slate-600/50">
+                          {team.teamName}
+                        </th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody>
                     {gameState.stocks.map((stock, idx) => {
-                      // 가격 계산: isPriceRevealed에 따라 다르게 표시
-                      const buyPrice = stock.prices[selectedTableRound - 1]; // 매수 시점 가격
-                      const nextPrice = stock.prices[selectedTableRound] || buyPrice; // 다음 라운드 가격 (없으면 현재가)
-                      const displayPrevPrice = isPriceRevealed ? buyPrice : buyPrice;
-                      const displayCurrentPrice = isPriceRevealed ? nextPrice : buyPrice;
-                      const priceChange = isPriceRevealed ? ((nextPrice - buyPrice) / buyPrice) * 100 : 0;
-
-                      // 해당 라운드에서 투자가 있는지 확인
-                      const hasAnyInvestment = gameState.teams.some(team => {
-                        const txHistory = team.transactionHistory || [];
-                        const hasTx = txHistory.some(tx =>
-                          Number(tx.round) === selectedTableRound && tx.stockId === stock.id && tx.type === 'BUY'
-                        );
-                        // 현재 라운드에서 투자 확정 전이면 portfolio에서도 확인
-                        if (!hasTx && selectedTableRound === gameState.currentRound && !gameState.isInvestmentConfirmed) {
-                          const portfolio = team.portfolio || {};
-                          return (typeof portfolio === 'object' && portfolio[stock.id]) ? Number(portfolio[stock.id]) > 0 : false;
-                        }
-                        return hasTx;
-                      });
-
+                      const hasAnyInvestment = gameState.teams.some(team => (team.portfolio[stock.id] || 0) > 0);
                       return (
-                        <tr key={stock.id} className={`${idx % 2 === 0 ? 'bg-slate-700/20' : 'bg-slate-700/10'} ${hasAnyInvestment ? '' : 'opacity-30'}`}>
-                          <td className="sticky left-0 bg-slate-800 px-6 py-4 border-b border-slate-600/30 z-10">
-                            <div className="flex items-center gap-3">
-                              <span className="w-14 h-14 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-black text-2xl">
-                                {stock.id}
-                              </span>
-                              <span className="text-white font-black text-2xl">{stock.name}</span>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4 text-right border-b border-slate-600/30">
-                            <span className="text-white font-black text-2xl">
-                              {displayPrevPrice.toLocaleString()}원
+                        <tr key={stock.id} className={`${idx % 2 === 0 ? 'bg-slate-700/20' : 'bg-slate-700/10'} ${hasAnyInvestment ? '' : 'opacity-50'}`}>
+                          <td className="sticky left-0 bg-slate-800 px-2 py-1 border-b border-slate-600/30 z-10">
+                            <span className="w-6 h-6 rounded bg-gradient-to-br from-indigo-500/30 to-purple-500/30 flex items-center justify-center text-white font-bold text-[11px]">
+                              {stock.name}
                             </span>
                           </td>
-                          {isPriceRevealed && (
-                            <>
-                              <td className="px-6 py-4 text-right border-b border-slate-600/30 bg-amber-900/20">
-                                <span className="text-amber-300 font-black text-2xl">
-                                  {displayCurrentPrice.toLocaleString()}원
-                                </span>
-                              </td>
-                              <td className="px-6 py-4 text-center border-b border-slate-600/30 bg-amber-900/20">
-                                <span className={`font-black text-2xl ${priceChange >= 0 ? 'text-red-500' : 'text-blue-500'}`}>
-                                  {priceChange >= 0 ? '▲' : '▼'} {Math.abs(priceChange).toFixed(1)}%
-                                </span>
-                              </td>
-                            </>
-                          )}
+                          <td className="px-2 py-1 text-right border-b border-slate-600/30">
+                            <span className="text-white font-bold text-[11px]">
+                              {stock.prices[gameState.currentRound - 1].toLocaleString()}
+                            </span>
+                          </td>
                           {gameState.teams.map(team => {
-                            const isTeamRevealed = revealedTeams.has(team.id);
-
-                            // 수량 계산 - transactionHistory에서 해당 라운드 매수 내역
-                            const txHistory = team.transactionHistory || [];
-                            let qty = txHistory
-                              .filter(tx => Number(tx.round) === selectedTableRound && tx.stockId === stock.id && tx.type === 'BUY')
-                              .reduce((sum, tx) => sum + (Number(tx.quantity) || 0), 0);
-
-                            // 현재 라운드에서 투자 확정 전이면 portfolio에서도 확인 (fallback)
-                            if (qty === 0 && selectedTableRound === gameState.currentRound && !gameState.isInvestmentConfirmed) {
-                              const portfolio = team.portfolio || {};
-                              qty = (typeof portfolio === 'object' && portfolio[stock.id]) ? Number(portfolio[stock.id]) : 0;
-                            }
-
-                            // 가치 계산 (주가 공개 여부에 따라)
-                            const value = qty * (isPriceRevealed ? displayCurrentPrice : displayPrevPrice);
-
-                            // 정보 구매 확인
-                            const teamHasInfo = team.unlockedCards?.some(cardId => {
-                              const card = INFO_CARDS.find(c => c.id === cardId);
-                              return card && card.stockId === stock.id;
-                            }) || false;
-
-                            const otherTeamHasInfo = gameState.teams.some(t =>
-                              t.id !== team.id && t.unlockedCards?.some(cardId => {
-                                const card = INFO_CARDS.find(c => c.id === cardId);
-                                return card && card.stockId === stock.id;
-                              })
-                            );
-
-                            // 색상 결정 - 정보 소유 여부는 항상 표시 (협상용)
-                            let cellBgClass = '';
-                            // 정보 소유 색상은 공개 전/후 모두 표시 (협상 시 볼 수 있도록)
-                            if (teamHasInfo) {
-                              cellBgClass = 'bg-emerald-500/30 border-l-4 border-emerald-400';
-                            }
-                            // 팀 공개 후 투자 정보에 따른 추가 색상
-                            if (isTeamRevealed && qty > 0 && !teamHasInfo) {
-                              if (otherTeamHasInfo) {
-                                cellBgClass = 'bg-amber-500/30 border-l-4 border-amber-400';
-                              } else {
-                                cellBgClass = 'bg-pink-500/30 border-l-4 border-pink-400';
-                              }
-                            }
-
+                            const qty = team.portfolio[stock.id] || 0;
+                            const value = qty * stock.prices[gameState.currentRound - 1];
                             return (
-                              <td key={team.id} className={`px-4 py-4 text-center border-b border-slate-600/30 ${cellBgClass}`}>
-                                {!isTeamRevealed ? (
-                                  // 공개 전: 정보 소유 여부만 표시
-                                  teamHasInfo ? (
-                                    <span className="text-emerald-400 font-black text-2xl">📋</span>
-                                  ) : (
-                                    <span className="text-slate-600 font-black text-3xl">?</span>
-                                  )
-                                ) : qty > 0 ? (
+                              <td key={team.id} className="px-2 py-1 text-center border-b border-slate-600/30">
+                                {qty > 0 ? (
                                   <div>
-                                    <span className="text-white font-black text-2xl">{qty}주</span>
-                                    <p className="text-xl text-slate-300 font-bold">{(value / 10000).toFixed(0)}만</p>
+                                    <span className="text-emerald-400 font-bold text-[11px]">{qty}주</span>
+                                    <p className="text-[9px] text-slate-500">{(value / 10000).toFixed(0)}만</p>
                                   </div>
                                 ) : (
-                                  <span className="text-slate-500 text-2xl font-bold">-</span>
+                                  <span className="text-slate-600">-</span>
                                 )}
                               </td>
                             );
@@ -2399,403 +1862,78 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                         </tr>
                       );
                     })}
-                    {/* 주식 합계 행 */}
-                    <tr className="bg-indigo-500/30 font-bold">
-                      <td className="sticky left-0 bg-indigo-900/80 px-6 py-5 border-t-4 border-indigo-500/50 z-10" colSpan={isPriceRevealed ? 4 : 2}>
-                        <span className="text-white text-2xl font-black">📊 주식 합계</span>
+                    {/* 합계 행 */}
+                    <tr className="bg-indigo-500/20 font-bold">
+                      <td className="sticky left-0 bg-indigo-900/80 px-2 py-1 border-t-2 border-indigo-500/50 z-10">
+                        <span className="text-indigo-300 text-[11px]">합계</span>
+                      </td>
+                      <td className="px-2 py-1 text-right border-t-2 border-indigo-500/50">
+                        <span className="text-slate-400 text-[11px]">-</span>
                       </td>
                       {gameState.teams.map(team => {
-                        const isTeamRevealed = revealedTeams.has(team.id);
-                        let totalValue = 0;
-                        let totalShares = 0;
-                        let buyValue = 0; // 매수금액
-
-                        // transactionHistory에서 해당 라운드 매수 내역
-                        const roundTxs = (team.transactionHistory || []).filter(tx => Number(tx.round) === selectedTableRound && tx.type === 'BUY');
-                        roundTxs.forEach(tx => {
-                          const stock = gameState.stocks.find(s => s.id === tx.stockId);
-                          if (stock) {
-                            const buyPrice = stock.prices[selectedTableRound - 1];
-                            const nextPrice = stock.prices[selectedTableRound] || buyPrice;
-                            buyValue += tx.quantity * buyPrice;
-                            totalValue += tx.quantity * (isPriceRevealed ? nextPrice : buyPrice);
-                            totalShares += tx.quantity;
-                          }
-                        });
-
-                        // 현재 라운드에서 투자 확정 전이면 portfolio에서도 확인 (fallback)
-                        if (totalShares === 0 && selectedTableRound === gameState.currentRound && !gameState.isInvestmentConfirmed) {
-                          const portfolio = team.portfolio || {};
-                          Object.entries(portfolio).forEach(([stockId, qty]) => {
-                            const stock = gameState.stocks.find(s => s.id === stockId);
-                            const numQty = typeof qty === 'number' ? qty : 0;
-                            if (stock && numQty > 0) {
-                              const buyPrice = stock.prices[selectedTableRound - 1];
-                              const nextPrice = stock.prices[selectedTableRound] || buyPrice;
-                              buyValue += numQty * buyPrice;
-                              totalValue += numQty * (isPriceRevealed ? nextPrice : buyPrice);
-                              totalShares += numQty;
-                            }
-                          });
-                        }
-
-                        const profitLoss = totalValue - buyValue;
-                        const profitRate = buyValue > 0 ? (profitLoss / buyValue) * 100 : 0;
-
+                        const totalValue = Object.entries(team.portfolio).reduce((sum, [stockId, qty]) => {
+                          const stock = gameState.stocks.find(s => s.id === stockId);
+                          return sum + (qty * (stock?.prices[gameState.currentRound - 1] || 0));
+                        }, 0);
+                        const totalShares = Object.values(team.portfolio).reduce((sum, qty) => sum + qty, 0);
                         return (
-                          <td key={team.id} className="px-4 py-5 text-center border-t-4 border-indigo-500/50">
-                            {!isTeamRevealed ? (
-                              <span className="text-slate-600 font-black text-3xl">?</span>
-                            ) : (
-                              <div>
-                                <span className="text-amber-400 font-black text-2xl">{totalShares}주</span>
-                                <p className="text-xl text-white font-black">{formatKoreanMoney(totalValue)}</p>
-                                {isPriceRevealed && totalShares > 0 && (
-                                  <p className={`text-lg font-black ${profitRate >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                                    {profitRate >= 0 ? '+' : ''}{profitRate.toFixed(1)}%
-                                  </p>
-                                )}
-                              </div>
-                            )}
+                          <td key={team.id} className="px-2 py-1 text-center border-t-2 border-indigo-500/50">
+                            <div>
+                              <span className="text-amber-400 font-bold text-[11px]">{totalShares}주</span>
+                              <p className="text-[9px] text-indigo-300">{(totalValue / 10000).toFixed(0)}만원</p>
+                            </div>
                           </td>
                         );
                       })}
                     </tr>
-                    {/* 보유현금 행 - 현재 라운드만 */}
-                    {selectedTableRound === gameState.currentRound && (
-                      <tr className="bg-emerald-500/20">
-                        <td className="sticky left-0 bg-emerald-900/60 px-6 py-5 z-10" colSpan={isPriceRevealed ? 4 : 2}>
-                          <span className="text-white text-2xl font-black">💵 보유현금</span>
+                    {/* 보유현금 행 */}
+                    <tr className="bg-emerald-500/10">
+                      <td className="sticky left-0 bg-emerald-900/50 px-2 py-1 z-10">
+                        <span className="text-emerald-300 text-[11px] font-bold">보유현금</span>
+                      </td>
+                      <td className="px-2 py-1 text-right">
+                        <span className="text-slate-400 text-[11px]">-</span>
+                      </td>
+                      {gameState.teams.map(team => (
+                        <td key={team.id} className="px-2 py-1 text-center">
+                          <span className="text-emerald-400 font-bold text-[11px]">{(team.currentCash / 10000).toFixed(0)}만</span>
                         </td>
-                        {gameState.teams.map(team => {
-                          const isTeamRevealed = revealedTeams.has(team.id);
-                          return (
-                            <td key={team.id} className="px-4 py-5 text-center">
-                              {!isTeamRevealed ? (
-                                <span className="text-slate-600 font-black text-3xl">?</span>
-                              ) : (
-                                <span className="text-emerald-400 font-black text-2xl">{formatKoreanMoney(team.currentCash)}</span>
-                              )}
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    )}
-                    {/* 총자산 행 - 현재 라운드만 */}
-                    {selectedTableRound === gameState.currentRound && (
-                      <tr className="bg-amber-500/30 font-bold">
-                        <td className="sticky left-0 bg-amber-900/60 px-6 py-5 z-10" colSpan={isPriceRevealed ? 4 : 2}>
-                          <span className="text-white text-2xl font-black">🏆 총자산</span>
-                        </td>
-                        {gameState.teams.map(team => {
-                          const isTeamRevealed = revealedTeams.has(team.id);
-                          let portfolioValue = 0;
-
-                          const portfolio = team.portfolio || {};
-                          Object.entries(portfolio).forEach(([stockId, qty]) => {
-                            const stock = gameState.stocks.find(s => s.id === stockId);
-                            const numQty = typeof qty === 'number' ? qty : 0;
-                            if (stock && numQty > 0) {
-                              const buyPrice = stock.prices[selectedTableRound - 1];
-                              const nextPrice = stock.prices[selectedTableRound] || buyPrice;
-                              portfolioValue += numQty * (isPriceRevealed ? nextPrice : buyPrice);
-                            }
-                          });
-
-                          const totalAsset = team.currentCash + portfolioValue;
-                          const profitRate = ((totalAsset - INITIAL_SEED_MONEY) / INITIAL_SEED_MONEY) * 100;
-
-                          return (
-                            <td key={team.id} className="px-4 py-5 text-center">
-                              {!isTeamRevealed ? (
-                                <span className="text-slate-600 font-black text-3xl">?</span>
-                              ) : (
-                                <div>
-                                  <span className="text-amber-400 font-black text-3xl">{formatKoreanMoney(totalAsset)}</span>
-                                  <p className={`text-xl font-black ${profitRate >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                                    {profitRate >= 0 ? '+' : ''}{profitRate.toFixed(1)}%
-                                  </p>
-                                </div>
-                              )}
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    )}
+                      ))}
+                    </tr>
+                    {/* 총자산 행 */}
+                    <tr className="bg-amber-500/20 font-bold">
+                      <td className="sticky left-0 bg-amber-900/50 px-2 py-1 z-10">
+                        <span className="text-amber-300 text-[11px]">총자산</span>
+                      </td>
+                      <td className="px-2 py-1 text-right">
+                        <span className="text-slate-400 text-[11px]">-</span>
+                      </td>
+                      {gameState.teams.map(team => {
+                        const portfolioValue = Object.entries(team.portfolio).reduce((sum, [stockId, qty]) => {
+                          const stock = gameState.stocks.find(s => s.id === stockId);
+                          return sum + (qty * (stock?.prices[gameState.currentRound - 1] || 0));
+                        }, 0);
+                        const totalAsset = team.currentCash + portfolioValue;
+                        const profitRate = ((totalAsset - INITIAL_SEED_MONEY) / INITIAL_SEED_MONEY) * 100;
+                        return (
+                          <td key={team.id} className="px-2 py-1 text-center">
+                            <div>
+                              <span className="text-amber-400 font-bold text-[11px]">{(totalAsset / 10000).toFixed(0)}만</span>
+                              <p className={`text-[9px] ${profitRate >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                {profitRate >= 0 ? '+' : ''}{profitRate.toFixed(1)}%
+                              </p>
+                            </div>
+                          </td>
+                        );
+                      })}
+                    </tr>
                   </tbody>
                 </table>
               </div>
 
-              {/* 하단 그래프는 제거됨 - 그래프 순위 확인 버튼으로 팝업에서 확인 */}
-
               <button
                 onClick={() => setShowInvestmentTable(false)}
-                className="btn-3d w-full mt-6 bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-5 rounded-xl font-black text-2xl"
-              >
-                닫기
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 팀 관리 모달 */}
-      {showTeamManagement && gameState && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
-          <div className="iso-card bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-auto border border-emerald-500/50">
-            <div className="p-6">
-              {/* 헤더 */}
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-black text-white flex items-center gap-2">
-                  ⚙️ 팀 관리
-                </h2>
-                <button
-                  onClick={() => setShowTeamManagement(false)}
-                  className="w-10 h-10 rounded-lg bg-slate-700 hover:bg-slate-600 flex items-center justify-center text-white text-xl transition-colors"
-                >
-                  ✕
-                </button>
-              </div>
-
-              {/* 팀 수 조절 */}
-              <div className="mb-6 p-4 rounded-xl bg-slate-700/30 border border-slate-600/50">
-                <h3 className="text-lg font-bold text-white mb-3">팀 수 조절</h3>
-                <div className="flex items-center gap-4">
-                  <button
-                    onClick={async () => {
-                      if (gameState.teams.length <= 2) return;
-                      const confirmed = window.confirm(`마지막 팀(${gameState.teams[gameState.teams.length - 1].teamName})을 삭제하시겠습니까?`);
-                      if (!confirmed) return;
-                      await updateGameState((current) => ({
-                        ...current,
-                        totalTeams: current.totalTeams - 1,
-                        teams: current.teams.slice(0, -1)
-                      }));
-                    }}
-                    disabled={gameState.teams.length <= 2}
-                    className="w-12 h-12 rounded-lg bg-rose-600 hover:bg-rose-500 disabled:bg-slate-600 disabled:cursor-not-allowed text-white text-2xl font-bold transition-colors"
-                  >
-                    −
-                  </button>
-                  <div className="flex-1 text-center">
-                    <span className="text-4xl font-black text-white">{gameState.teams.length}</span>
-                    <span className="text-slate-400 ml-2">팀</span>
-                  </div>
-                  <button
-                    onClick={async () => {
-                      if (gameState.teams.length >= 10) return;
-                      const newTeamNumber = gameState.teams.length + 1;
-                      const newTeam: Team = {
-                        id: `team-${newTeamNumber}`,
-                        number: newTeamNumber,
-                        teamName: `Team ${newTeamNumber}`,
-                        leaderName: '',
-                        members: [],
-                        currentCash: INITIAL_SEED_MONEY,
-                        portfolio: {},
-                        unlockedCards: [],
-                        grantedInfoCount: 0,
-                        purchasedInfoCountPerRound: {},
-                        transactionHistory: [],
-                        roundResults: []
-                      };
-                      await updateGameState((current) => ({
-                        ...current,
-                        totalTeams: current.totalTeams + 1,
-                        teams: [...current.teams, newTeam]
-                      }));
-                    }}
-                    disabled={gameState.teams.length >= 10}
-                    className="w-12 h-12 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-600 disabled:cursor-not-allowed text-white text-2xl font-bold transition-colors"
-                  >
-                    +
-                  </button>
-                </div>
-                <p className="text-xs text-slate-400 mt-2 text-center">최소 2팀 ~ 최대 10팀</p>
-              </div>
-
-              {/* 팀 이름 수정 */}
-              <div className="mb-6">
-                <h3 className="text-lg font-bold text-white mb-3">팀 이름 수정</h3>
-                <div className="space-y-2">
-                  {gameState.teams.map((team, idx) => (
-                    <div key={team.id} className="flex items-center gap-3 p-3 rounded-xl bg-slate-700/30 border border-slate-600/30">
-                      <div className={`w-10 h-10 rounded-lg ${teamColors[idx % teamColors.length]} flex items-center justify-center text-white font-bold flex-shrink-0`}>
-                        {team.number}
-                      </div>
-                      {editingTeamId === team.id ? (
-                        <>
-                          <input
-                            type="text"
-                            value={editingTeamName}
-                            onChange={e => setEditingTeamName(e.target.value)}
-                            onKeyDown={e => {
-                              if (e.key === 'Enter') {
-                                saveTeamName(team.id);
-                                setEditingTeamId(null);
-                              }
-                              if (e.key === 'Escape') setEditingTeamId(null);
-                            }}
-                            autoFocus
-                            className="flex-1 px-3 py-2 rounded-lg bg-slate-600/50 border border-indigo-500/50 text-white font-bold outline-none focus:border-indigo-400"
-                            placeholder="팀 이름 입력"
-                          />
-                          <button
-                            onClick={() => {
-                              saveTeamName(team.id);
-                              setEditingTeamId(null);
-                            }}
-                            className="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-500"
-                          >
-                            저장
-                          </button>
-                          <button
-                            onClick={() => setEditingTeamId(null)}
-                            className="px-4 py-2 rounded-lg bg-slate-600 text-slate-300 text-sm font-bold hover:bg-slate-500"
-                          >
-                            취소
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <span className="flex-1 text-white font-bold">{team.teamName}</span>
-                          <span className="text-xs text-slate-500">
-                            {team.members.length > 0 ? `${team.members.length}명` : '멤버 없음'}
-                          </span>
-                          <button
-                            onClick={() => {
-                              setEditingTeamId(team.id);
-                              setEditingTeamName(team.teamName);
-                            }}
-                            className="px-4 py-2 rounded-lg bg-slate-600 text-slate-300 text-sm font-bold hover:bg-slate-500"
-                          >
-                            수정
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* 닫기 버튼 */}
-              <button
-                onClick={() => setShowTeamManagement(false)}
-                className="btn-3d w-full bg-gradient-to-r from-emerald-600 to-teal-600 text-white py-4 rounded-xl font-bold text-lg"
-              >
-                완료
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 그래프 순위 확인 팝업 */}
-      {showRankingGraph && gameState && (
-        <div className="fixed inset-0 bg-black/90 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
-          <div className="iso-card bg-gradient-to-br from-slate-800 to-slate-900 rounded-3xl w-full max-w-5xl max-h-[90vh] overflow-auto border-4 border-purple-500/50">
-            <div className="p-8">
-              {/* 헤더 */}
-              <div className="flex justify-between items-center mb-8">
-                <h2 className="text-4xl font-black text-white flex items-center gap-3">
-                  📊 {selectedTableRound}R 팀별 총 자산 현황
-                </h2>
-                <button
-                  onClick={() => setShowRankingGraph(false)}
-                  className="w-14 h-14 rounded-xl bg-slate-700 hover:bg-slate-600 flex items-center justify-center text-white text-3xl transition-colors"
-                >
-                  ✕
-                </button>
-              </div>
-
-              {/* 세로 막대 그래프 */}
-              <div className="flex items-end justify-center gap-8 pb-4" style={{ minHeight: '500px' }}>
-                {(() => {
-                  // 공개된 팀들의 총 자산 계산 (현금 + 주식 가치)
-                  const INITIAL_SEED_MONEY = 10000000; // 1000만원
-                  const teamAssets = gameState.teams
-                    .filter(team => revealedTeams.has(team.id))
-                    .map((team) => {
-                      // 총 자산 계산: 현금 + 포트폴리오 가치 (현재 주가 기준)
-                      const stockValue = Object.entries(team.portfolio || {}).reduce((sum, [stockId, qty]) => {
-                        const stock = gameState.stocks.find(s => s.id === stockId);
-                        if (stock && qty > 0) {
-                          // 현재 라운드의 다음 가격 (즉, 결과 발표 후 가격)
-                          const currentPrice = stock.prices[selectedTableRound] || stock.prices[selectedTableRound - 1];
-                          return sum + (Number(qty) * currentPrice);
-                        }
-                        return sum;
-                      }, 0);
-
-                      const totalAssets = team.currentCash + stockValue;
-                      const profitRate = ((totalAssets - INITIAL_SEED_MONEY) / INITIAL_SEED_MONEY) * 100;
-
-                      return {
-                        team,
-                        totalAssets,
-                        profitRate,
-                        color: teamColors[gameState.teams.indexOf(team) % teamColors.length]
-                      };
-                    })
-                    // 팀 번호 순서로 정렬 (1팀, 2팀, 3팀...)
-                    .sort((a, b) => a.team.number - b.team.number);
-
-                  // 순위 계산을 위해 총자산 기준 정렬된 배열 생성
-                  const rankedTeams = [...teamAssets].sort((a, b) => b.totalAssets - a.totalAssets);
-                  const getRank = (teamId: string) => rankedTeams.findIndex(t => t.team.id === teamId) + 1;
-
-                  const maxValue = Math.max(...teamAssets.map(t => t.totalAssets), 1);
-
-                  return teamAssets.map(({ team, totalAssets, profitRate, color }) => {
-                    const barHeight = Math.max(10, (totalAssets / maxValue) * 100);
-                    const rank = getRank(team.id);
-
-                    return (
-                      <div key={team.id} className="flex flex-col items-center" style={{ width: '140px' }}>
-                        {/* 순위 */}
-                        <div className={`mb-2 w-12 h-12 rounded-full flex items-center justify-center font-black text-2xl ${
-                          rank === 1 ? 'bg-amber-500 text-white' :
-                          rank === 2 ? 'bg-slate-400 text-white' :
-                          rank === 3 ? 'bg-amber-700 text-white' :
-                          'bg-slate-600 text-slate-300'
-                        }`}>
-                          {rank}위
-                        </div>
-
-                        {/* 총자산 & 수익률 */}
-                        <div className="text-center mb-4">
-                          <div className="text-white font-black text-2xl">
-                            {formatKoreanMoney(totalAssets)}
-                          </div>
-                          <div className={`text-xl font-bold ${profitRate >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                            {profitRate >= 0 ? '+' : ''}{profitRate.toFixed(1)}%
-                          </div>
-                        </div>
-
-                        {/* 세로 막대 */}
-                        <div className="w-full flex flex-col justify-end items-center" style={{ height: '280px' }}>
-                          <div
-                            className={`w-20 ${color} rounded-t-xl transition-all duration-700 shadow-lg`}
-                            style={{ height: `${barHeight}%`, minHeight: '30px' }}
-                          />
-                        </div>
-
-                        {/* 팀 이름 */}
-                        <div className="text-center mt-4">
-                          <span className={`text-2xl font-black ${color.replace('bg-', 'text-').replace('-500', '-400')}`}>
-                            {team.teamName}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  });
-                })()}
-              </div>
-
-              {/* 닫기 버튼 */}
-              <button
-                onClick={() => setShowRankingGraph(false)}
-                className="btn-3d w-full mt-8 bg-gradient-to-r from-purple-600 to-indigo-600 text-white py-5 rounded-xl font-black text-2xl"
+                className="btn-3d w-full mt-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white py-3 rounded-xl font-bold text-sm"
               >
                 닫기
               </button>
@@ -2959,167 +2097,6 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               닫기
             </button>
           </div>
-        </div>
-      )}
-
-      {/* 독립 타이머 플로팅 버튼 - 게임 관리 화면에서만 표시 */}
-      {view === 'room-manage' && gameState && (
-        <button
-          onClick={() => setShowStandaloneTimer(true)}
-          className="fixed bottom-32 right-5 z-50 w-14 h-14 bg-gradient-to-br from-orange-500 to-red-600 text-white rounded-none border-3 border-black shadow-[4px_4px_0_#000] hover:shadow-[6px_6px_0_#000] hover:translate-x-[-2px] hover:translate-y-[-2px] transition-all flex items-center justify-center"
-          title="타이머 열기"
-        >
-          <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
-          </svg>
-        </button>
-      )}
-
-      {/* 독립 타이머 모달 (정보협상 등 다용도) - 심플 버전 */}
-      {showStandaloneTimer && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-          <div className="iso-card bg-white dark:bg-slate-900 rounded-2xl w-full max-w-2xl border-4 border-black">
-            <div className="p-6">
-              {/* 헤더 - 컨트롤 아이콘과 닫기 버튼 */}
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-2xl font-black text-black dark:text-white">⏱️ 타이머</h2>
-                <div className="flex items-center gap-2">
-                  {/* 재생/일시정지 버튼 */}
-                  {!standaloneTimerRunning ? (
-                    <button
-                      onClick={startStandaloneTimer}
-                      className="p-3 rounded-lg bg-emerald-500 text-white hover:bg-emerald-600 transition-colors"
-                      title="시작"
-                    >
-                      <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M8 5v14l11-7z"/>
-                      </svg>
-                    </button>
-                  ) : (
-                    <button
-                      onClick={toggleStandaloneTimer}
-                      className="p-3 rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition-colors"
-                      title="일시정지"
-                    >
-                      <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M6 4h4v16H6zm8 0h4v16h-4z"/>
-                      </svg>
-                    </button>
-                  )}
-                  {/* 리셋 버튼 */}
-                  <button
-                    onClick={resetStandaloneTimer}
-                    className="p-3 rounded-lg bg-slate-500 text-white hover:bg-slate-600 transition-colors"
-                    title="리셋"
-                  >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-                    </svg>
-                  </button>
-                  {/* 닫기 버튼 */}
-                  <button
-                    onClick={() => setShowStandaloneTimer(false)}
-                    className="p-3 rounded-lg bg-slate-700 text-white hover:bg-slate-800 transition-colors"
-                    title="닫기"
-                  >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12"/>
-                    </svg>
-                  </button>
-                </div>
-              </div>
-
-              {/* 타이머 디스플레이 - 실행 중일 때 더 크게 */}
-              <div className={`text-center rounded-xl border-4 transition-all timer-display-bg ${
-                standaloneTimerSeconds <= 10 && standaloneTimerRunning
-                  ? 'border-rose-500 bg-rose-50 dark:bg-rose-500/20 animate-pulse'
-                  : standaloneTimerSeconds <= 30 && standaloneTimerRunning
-                  ? 'border-amber-500 bg-amber-50 dark:bg-amber-500/20'
-                  : 'border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/30'
-              } ${standaloneTimerRunning ? 'p-12' : 'p-8'}`}>
-                <div className={`font-black font-mono tracking-wider transition-all ${
-                  standaloneTimerSeconds <= 10 && standaloneTimerRunning
-                    ? 'text-rose-500'
-                    : standaloneTimerSeconds <= 30 && standaloneTimerRunning
-                    ? 'text-amber-500'
-                    : 'text-black dark:text-white'
-                } ${standaloneTimerRunning ? 'text-[10rem] leading-none' : 'text-8xl'}`}>
-                  {formatStandaloneTime(standaloneTimerSeconds)}
-                </div>
-                {/* 프로그레스 바 */}
-                <div className="mt-6 h-4 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full transition-all duration-1000 ${
-                      standaloneTimerSeconds <= 10
-                        ? 'bg-rose-500'
-                        : standaloneTimerSeconds <= 30
-                        ? 'bg-amber-500'
-                        : 'bg-emerald-500'
-                    }`}
-                    style={{ width: `${(standaloneTimerSeconds / standaloneTimerMax) * 100}%` }}
-                  />
-                </div>
-              </div>
-
-              {/* 시간 설정 (타이머가 멈춰있을 때만) */}
-              {!standaloneTimerRunning && standaloneTimerSeconds === standaloneTimerMax && (
-                <div className="mt-6">
-                  <div className="flex gap-2">
-                    {[60, 120, 180, 300, 600].map(sec => (
-                      <button
-                        key={sec}
-                        onClick={() => {
-                          setStandaloneTimerInput(sec);
-                          setStandaloneTimerSeconds(sec);
-                          setStandaloneTimerMax(sec);
-                        }}
-                        className={`flex-1 py-3 rounded-lg font-bold text-lg transition-all ${
-                          standaloneTimerInput === sec
-                            ? 'bg-orange-500 text-white border-2 border-orange-400'
-                            : 'bg-slate-200 dark:bg-slate-700 text-black dark:text-slate-300 border-2 border-slate-300 dark:border-slate-600 hover:border-slate-400'
-                        }`}
-                      >
-                        {sec >= 60 ? `${Math.floor(sec / 60)}분` : `${sec}초`}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="mt-3 flex items-center gap-3">
-                    <input
-                      type="number"
-                      value={standaloneTimerInput}
-                      onChange={e => {
-                        const val = Math.max(1, Number(e.target.value));
-                        setStandaloneTimerInput(val);
-                        setStandaloneTimerSeconds(val);
-                        setStandaloneTimerMax(val);
-                      }}
-                      className="flex-1 px-4 py-3 rounded-lg bg-slate-100 dark:bg-slate-700 border-2 border-slate-300 dark:border-slate-600 text-black dark:text-white font-bold text-xl text-center"
-                      min="1"
-                    />
-                    <span className="text-slate-500 dark:text-slate-400 font-bold">초</span>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 타이머 작동 중 미니 인디케이터 (모달 닫혀있을 때) */}
-      {!showStandaloneTimer && standaloneTimerRunning && view === 'room-manage' && (
-        <div
-          onClick={() => setShowStandaloneTimer(true)}
-          className={`fixed bottom-32 right-5 z-50 px-4 py-2 rounded-none border-3 border-black shadow-[4px_4px_0_#000] cursor-pointer transition-all ${
-            standaloneTimerSeconds <= 10
-              ? 'bg-rose-500 animate-pulse'
-              : standaloneTimerSeconds <= 30
-              ? 'bg-amber-500'
-              : 'bg-emerald-500'
-          }`}
-        >
-          <span className="text-white font-black text-2xl font-mono">
-            {formatStandaloneTime(standaloneTimerSeconds)}
-          </span>
         </div>
       )}
     </div>

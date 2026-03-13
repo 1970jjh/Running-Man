@@ -6,8 +6,6 @@ import AdminDashboard from './components/AdminDashboard';
 import UserDashboard from './components/UserDashboard';
 import Login from './components/Login';
 import FullScreenButton from './components/FullScreenButton';
-import ThemeToggle from './components/ThemeToggle';
-import { ThemeProvider } from './contexts/ThemeContext';
 import { subscribeToRoom, updateRoomGameState, joinTeam, isFirebaseReady, getRoom, leaveTeam, executeTeamTrade, TradeRequest } from './firebase';
 
 type AppView = 'login' | 'admin' | 'user';
@@ -243,14 +241,12 @@ const App: React.FC = () => {
   }, [currentRoomId, myTeamIndex]);
 
   return (
-    <ThemeProvider>
     <div className="min-h-screen text-white flex flex-col font-sans selection:bg-indigo-500/30">
       {/* 통합 배경 */}
       <div className="app-background" />
 
-      {/* 전체화면 버튼 & 테마 토글 */}
+      {/* 전체화면 버튼 */}
       <FullScreenButton />
-      <ThemeToggle />
 
       {view === 'login' && (
         <Login
@@ -354,7 +350,6 @@ const App: React.FC = () => {
         </div>
       )}
     </div>
-    </ThemeProvider>
   );
 };
 
