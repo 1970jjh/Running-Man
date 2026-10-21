@@ -102,6 +102,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
       if (room) {
         setSelectedRoom(room);
         setGameState(room.gameState);
+      } else {
+        // 다른 관리자 창에서 방이 삭제됨 → 방 목록으로 (삭제된 방에 다시 쓰지 않도록)
+        setSelectedRoomId(null);
+        setSelectedRoom(null);
+        setGameState(null);
+        setView('room-list');
       }
     });
     return () => unsubscribe();

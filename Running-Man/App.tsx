@@ -130,7 +130,8 @@ const App: React.FC = () => {
           setGameState(room.gameState);
           setJoinError(null);
         } else {
-          // 방이 삭제되었거나 찾을 수 없음
+          // 방이 삭제되었거나 찾을 수 없음 (게임 화면 대신 안내 화면 표시)
+          setGameState(null);
           setJoinError('방을 찾을 수 없습니다. 방이 삭제되었을 수 있습니다.');
         }
       },
