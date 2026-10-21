@@ -5,16 +5,18 @@ import InvestmentModule from './InvestmentModule';
 import { INFO_CARDS, STEP_NAMES, INITIAL_SEED_MONEY } from '../constants';
 import { TradeRequest } from '../firebase';
 import { playStepChangeSound, playTimerEndSound, resumeAudioContext } from '../utils/sounds';
+import { useRemainingSeconds } from '../hooks/useRemainingSeconds';
 
 interface UserDashboardProps {
   gameState: GameState;
   myTeam: Team;
-  setGameState: React.Dispatch<React.SetStateAction<GameState>>;
+  onRedeemInfo: (cardId: string) => void;
   onExitRequest?: () => void;
   onTrade: (trade: Omit<TradeRequest, 'roomId' | 'teamIndex'>) => Promise<{ success: boolean; error?: string }>;
 }
 
-const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGameState, onExitRequest, onTrade }) => {
+const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, onRedeemInfo, onExitRequest, onTrade }) => {
+  const timerSeconds = useRemainingSeconds(gameState);
   const [activeTab, setActiveTab] = useState<'info' | 'invest' | 'portfolio'>('info');
   const [showConfirmPopup, setShowConfirmPopup] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<number | null>(null);
@@ -64,14 +66,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
       alert('사용 가능한 무료 정보권이 없습니다.');
       return;
     }
-    setGameState(prev => ({
-      ...prev,
-      teams: prev.teams.map(t => t.id === myTeam.id ? {
-        ...t,
-        grantedInfoCount: t.grantedInfoCount - 1,
-        unlockedCards: [...t.unlockedCards, cardId]
-      } : t)
-    }));
+    onRedeemInfo(cardId);
     setShowConfirmPopup(null);
   };
 
@@ -154,20 +149,20 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ gameState, myTeam, setGam
               <div className="flex justify-between items-center mb-2">
                 <span className="text-xs text-slate-400 font-bold">투자 시간</span>
                 <span className={`text-sm font-black font-display ${
-                  gameState.timerSeconds < 60 ? 'text-rose-400' :
-                  gameState.timerSeconds < 180 ? 'text-amber-400' : 'text-emerald-400'
+                  timerSeconds < 60 ? 'text-rose-400' :
+                  timerSeconds < 180 ? 'text-amber-400' : 'text-emerald-400'
                 }`}>
-                  {Math.floor(gameState.timerSeconds / 60)}:{(gameState.timerSeconds % 60).toString().padStart(2, '0')}
+                  {Math.floor(timerSeconds / 60)}:{(timerSeconds % 60).toString().padStart(2, '0')}
                 </span>
               </div>
               <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
                 <div
                   className={`h-full transition-all duration-1000 ${
-                    gameState.timerSeconds < 60 ? 'bg-gradient-to-r from-rose-500 to-rose-400' :
-                    gameState.timerSeconds < 180 ? 'bg-gradient-to-r from-amber-500 to-amber-400' :
+                    timerSeconds < 60 ? 'bg-gradient-to-r from-rose-500 to-rose-400' :
+                    timerSeconds < 180 ? 'bg-gradient-to-r from-amber-500 to-amber-400' :
                     'bg-gradient-to-r from-emerald-500 to-emerald-400'
                   }`}
-                  style={{ width: `${(gameState.timerSeconds / (gameState.timerMaxSeconds || 300)) * 100}%` }}
+                  style={{ width: `${(timerSeconds / (gameState.timerMaxSeconds || 300)) * 100}%` }}
                 />
               </div>
               {gameState.isInvestmentLocked && (

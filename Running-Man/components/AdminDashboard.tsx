@@ -1,18 +1,25 @@
 
 import React, { useState, useEffect } from 'react';
-import { GameState, GameStatus, GameStep, Team, Room } from '../types';
+import { GameState, GameStatus, GameStep, Team, Room, RoomListItem } from '../types';
 import { STOCK_DATA, INITIAL_SEED_MONEY, INFO_CARDS, STEP_NAMES, ADMIN_PASSWORD } from '../constants';
 import {
   createRoom,
   subscribeToRooms,
   subscribeToRoom,
   updateRoomGameState,
+  patchRoomGameState,
+  adjustGrantedInfoCount,
+  expireTimer,
+  getServerNow,
+  pausedTimerFields,
+  runningTimerFields,
   deleteRoom,
   createDefaultGameState,
   isFirebaseReady,
   getFirebaseError
 } from '../firebase';
 import analyzeTeamPerformance, { AnalysisReport } from '../gemini';
+import { useRemainingSeconds } from '../hooks/useRemainingSeconds';
 
 interface AdminDashboardProps {
   onLogout: () => void;
@@ -22,9 +29,11 @@ type AdminView = 'room-list' | 'room-setup' | 'room-manage';
 
 const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   const [view, setView] = useState<AdminView>('room-list');
-  const [rooms, setRooms] = useState<Room[]>([]);
+  const [rooms, setRooms] = useState<RoomListItem[]>([]);
+  const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
   const [gameState, setGameState] = useState<GameState | null>(null);
+  const timerSeconds = useRemainingSeconds(gameState);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
@@ -58,7 +67,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   // Firebase 연결 상태 확인
   const firebaseConnected = isFirebaseReady();
 
-  // 방 목록 실시간 구독
+  // 방 목록 실시간 구독 (방 목록 화면에서만 - 방 관리 중에는 받지 않음)
+  const isRoomListView = view === 'room-list';
   useEffect(() => {
     if (!firebaseConnected) {
       const error = getFirebaseError();
@@ -66,6 +76,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
       setLoading(false);
       return;
     }
+    if (!isRoomListView) return;
 
     const unsubscribe = subscribeToRooms(
       (roomList) => {
@@ -79,20 +90,31 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
       }
     );
     return () => unsubscribe();
-  }, [firebaseConnected]);
+  }, [firebaseConnected, isRoomListView]);
 
   // 선택된 방 실시간 구독
   useEffect(() => {
-    if (!selectedRoom) return;
+    if (!selectedRoomId) return;
 
-    const unsubscribe = subscribeToRoom(selectedRoom.id, (room) => {
+    const unsubscribe = subscribeToRoom(selectedRoomId, (room) => {
       if (room) {
         setSelectedRoom(room);
         setGameState(room.gameState);
       }
     });
     return () => unsubscribe();
-  }, [selectedRoom?.id]);
+  }, [selectedRoomId]);
+
+  // 타이머 종료 시 투자 잠금 (1초마다 쓰지 않고 종료 시각에 한 번만 처리)
+  useEffect(() => {
+    if (!selectedRoomId || !gameState?.isTimerRunning || !gameState.timerEndAt) return;
+
+    const timerEndAt = gameState.timerEndAt;
+    const timeout = setTimeout(() => {
+      expireTimer(selectedRoomId, timerEndAt);
+    }, Math.max(0, timerEndAt - getServerNow()));
+    return () => clearTimeout(timeout);
+  }, [selectedRoomId, gameState?.isTimerRunning, gameState?.timerEndAt]);
 
   // 단계 순서 정의
   const steps = [
@@ -117,6 +139,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
 
     try {
       const newRoom = await createRoom(setupRoomName, setupPassword, setupTeams, setupMaxRounds);
+      setSelectedRoomId(newRoom.id);
       setSelectedRoom(newRoom);
       setGameState(newRoom.gameState);
       setView('room-manage');
@@ -133,11 +156,24 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   };
 
   // 방 선택 및 관리
-  const handleSelectRoom = (room: Room) => {
-    setSelectedRoom(room);
-    setGameState(room.gameState);
+  // 목록에는 요약 정보만 있으므로 게임 데이터는 방 구독으로 받음
+  const handleSelectRoom = (room: RoomListItem) => {
+    if (room.id !== selectedRoomId) {
+      setSelectedRoom(null);
+      setGameState(null);
+      setSelectedRoomId(room.id);
+    }
     setView('room-manage');
   };
+
+  // 바뀐 필드만 저장 (다른 값에 의존하지 않는 변경용)
+  const patchGameState = async (fields: { [path: string]: any }) => {
+    if (!selectedRoom) return;
+    await patchRoomGameState(selectedRoom.id, fields);
+  };
+
+  // teams 배열에서의 위치 (Firebase 경로 teams/{index})
+  const getTeamIndex = (teamId: string) => gameState ? gameState.teams.findIndex(t => t.id === teamId) : -1;
 
   // 방 삭제
   const handleDeleteRoom = async (roomId: string) => {
@@ -157,15 +193,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   const startGame = async () => {
     if (!gameState) return;
 
-    await updateGameState((current) => ({
-      ...current,
+    await patchGameState({
       currentRound: 1,
       currentStatus: GameStatus.ROUND_1,
       currentStep: GameStep.MINI_GAME,
       completedSteps: [],
       isInvestmentLocked: true,
       revealedResults: false
-    }));
+    });
   };
 
   // 단계 변경
@@ -174,12 +209,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
 
     const newCompletedSteps = steps.slice(0, stepIdx).map(s => s.key);
 
-    await updateGameState((current) => ({
-      ...current,
+    await patchGameState({
       currentStep: step,
       completedSteps: newCompletedSteps,
       revealedResults: false
-    }));
+    });
   };
 
   // 라운드 결과 계산 및 자동 매도
@@ -235,7 +269,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
 
     // 현재 라운드가 마지막 라운드이면 게임 종료 (maxRounds가 3이면 ROUND_3(인덱스 2)에서 종료)
     if (currentIdx >= gameState.maxRounds - 1) {
-      await updateGameState((current) => ({ ...current, currentStatus: GameStatus.FINISHED }));
+      await patchGameState({ currentStatus: GameStatus.FINISHED });
       return;
     }
 
@@ -247,7 +281,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
       currentRound: current.currentRound + 1,
       currentStep: GameStep.MINI_GAME,
       completedSteps: [],
-      isTimerRunning: false,
+      ...pausedTimerFields(current),
       isInvestmentLocked: true,
       isInvestmentConfirmed: false,
       revealedResults: false,
@@ -265,70 +299,46 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
 
   // 정보 구매권 부여
   const grantInfo = async (teamId: string, count: number) => {
-    if (!gameState) return;
+    if (!gameState || !selectedRoom) return;
 
-    await updateGameState((current) => ({
-      ...current,
-      teams: current.teams.map(t =>
-        t.id === teamId
-          ? { ...t, grantedInfoCount: Math.max(0, t.grantedInfoCount + count) }
-          : t
-      )
-    }));
+    const teamIndex = getTeamIndex(teamId);
+    if (teamIndex === -1) return;
+    await adjustGrantedInfoCount(selectedRoom.id, teamIndex, count);
   };
 
   // 팀 이름 수정
   const saveTeamName = async (teamId: string) => {
     if (!gameState || !editingTeamName.trim()) return;
-    await updateGameState((current) => ({
-      ...current,
-      teams: current.teams.map(t =>
-        t.id === teamId ? { ...t, teamName: editingTeamName.trim() } : t
-      )
-    }));
+    const teamIndex = getTeamIndex(teamId);
+    if (teamIndex !== -1) {
+      await patchGameState({ [`teams/${teamIndex}/teamName`]: editingTeamName.trim() });
+    }
     setEditingTeamId(null);
     setEditingTeamName('');
   };
-
-  // 타이머 관리
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (gameState?.isTimerRunning && gameState?.timerSeconds > 0) {
-      interval = setInterval(async () => {
-        await updateGameState((current) => {
-          const newSeconds = current.timerSeconds - 1;
-          return {
-            ...current,
-            timerSeconds: newSeconds,
-            ...(newSeconds === 0 ? { isTimerRunning: false, isInvestmentLocked: true } : {})
-          };
-        });
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [gameState?.isTimerRunning, gameState?.timerSeconds]);
 
   // 투자 시작
   const startInvestment = async () => {
     if (!gameState) return;
 
-    await updateGameState((current) => ({
-      ...current,
-      timerSeconds: timerInput,
+    await patchGameState({
+      ...runningTimerFields(timerInput),
       timerMaxSeconds: timerInput,
-      isTimerRunning: true,
       isInvestmentLocked: false
-    }));
+    });
   };
 
   // 투자 잠금/해제
   const toggleInvestmentLock = async () => {
     if (!gameState) return;
 
+    // 잠금 해제 → 남은 시간부터 타이머 재개, 잠금 → 남은 시간에서 타이머 정지
     await updateGameState((current) => ({
       ...current,
       isInvestmentLocked: !current.isInvestmentLocked,
-      isTimerRunning: current.isInvestmentLocked
+      ...(current.isInvestmentLocked
+        ? runningTimerFields(current.timerSeconds)
+        : pausedTimerFields(current))
     }));
   };
 
@@ -344,7 +354,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
       return {
         ...current,
         isInvestmentLocked: true,
-        isTimerRunning: false,
+        ...pausedTimerFields(current),
         isInvestmentConfirmed: true,
         isPortfolioLocked: true,
         teams: current.teams.map(team => {
@@ -438,11 +448,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
       return;
     }
 
-    await updateGameState((current) => ({
-      ...current,
+    await patchGameState({
       revealedResults: true,
       isPortfolioLocked: false
-    }));
+    });
 
     setShowResultModal(true);
     setResultStep('stocks');
@@ -457,7 +466,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
 
     // 현재 라운드가 마지막 라운드이면 게임 종료 (maxRounds가 3이면 ROUND_3(인덱스 2)에서 종료)
     if (currentIdx >= gameState.maxRounds - 1) {
-      await updateGameState((current) => ({ ...current, currentStatus: GameStatus.FINISHED }));
+      await patchGameState({ currentStatus: GameStatus.FINISHED });
       setShowResultModal(false);
       return;
     }
@@ -471,7 +480,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
       currentRound: current.currentRound + 1,
       currentStep: GameStep.MINI_GAME,
       completedSteps: [],
-      isTimerRunning: false,
+      ...pausedTimerFields(current),
       isInvestmentLocked: true,
       isInvestmentConfirmed: false,
       revealedResults: false,
@@ -741,6 +750,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
           <p className="text-sm text-slate-400 mb-6">잠시만 기다려주세요</p>
           <button
             onClick={() => {
+              setSelectedRoomId(null);
               setSelectedRoom(null);
               setGameState(null);
               setView('room-list');
@@ -1125,10 +1135,10 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
               <div className="text-center px-4 py-2 bg-slate-700/50 rounded-xl">
                 <p className="text-xs text-slate-400 uppercase font-bold">타이머</p>
                 <p className={`text-2xl font-black font-display ${
-                  gameState.timerSeconds < 60 ? 'text-rose-400' :
-                  gameState.timerSeconds < 180 ? 'text-amber-400' : 'text-emerald-400'
+                  timerSeconds < 60 ? 'text-rose-400' :
+                  timerSeconds < 180 ? 'text-amber-400' : 'text-emerald-400'
                 }`}>
-                  {Math.floor(gameState.timerSeconds / 60)}:{(gameState.timerSeconds % 60).toString().padStart(2, '0')}
+                  {Math.floor(timerSeconds / 60)}:{(timerSeconds % 60).toString().padStart(2, '0')}
                 </p>
               </div>
               {/* 투자 확정 상태 표시 */}
@@ -1271,11 +1281,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                   <div className="h-3 bg-slate-700 rounded-full overflow-hidden">
                     <div
                       className={`h-full transition-all duration-1000 ${
-                        gameState.timerSeconds < 60 ? 'bg-gradient-to-r from-rose-500 to-rose-400' :
-                        gameState.timerSeconds < 180 ? 'bg-gradient-to-r from-amber-500 to-amber-400' :
+                        timerSeconds < 60 ? 'bg-gradient-to-r from-rose-500 to-rose-400' :
+                        timerSeconds < 180 ? 'bg-gradient-to-r from-amber-500 to-amber-400' :
                         'bg-gradient-to-r from-emerald-500 to-emerald-400'
                       }`}
-                      style={{ width: `${(gameState.timerSeconds / gameState.timerMaxSeconds) * 100}%` }}
+                      style={{ width: `${(timerSeconds / gameState.timerMaxSeconds) * 100}%` }}
                     />
                   </div>
                 </div>

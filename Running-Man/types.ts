@@ -82,9 +82,10 @@ export interface GameState {
   currentStatus: GameStatus;
   currentStep: GameStep;
   completedSteps: GameStep[];
-  timerSeconds: number;
+  timerSeconds: number; // 정지 상태의 남은 시간 (진행 중에는 timerEndAt 기준으로 계산)
   timerMaxSeconds: number;
   isTimerRunning: boolean;
+  timerEndAt?: number | null; // 타이머 종료 시각 (서버 시간 ms, 진행 중일 때만 존재)
   isInvestmentLocked: boolean;
   isInvestmentConfirmed: boolean; // 투자 확정 여부
   isPortfolioLocked: boolean; // 포트폴리오 잠금 (투자 확정 ~ 결과 발표 사이)
@@ -103,4 +104,15 @@ export interface Room {
   maxRounds: number;
   gameState: GameState;
   isActive: boolean;
+}
+
+// 방 목록 화면용 요약 정보 (roomIndex에 저장, 전체 gameState를 받지 않기 위함)
+export interface RoomListItem {
+  id: string;
+  name: string;
+  createdAt: number;
+  totalTeams: number;
+  maxRounds: number;
+  isActive: boolean;
+  gameState: Pick<GameState, 'currentStatus'>;
 }

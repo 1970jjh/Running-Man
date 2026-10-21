@@ -12,7 +12,7 @@ import {
   Database,
   DatabaseReference
 } from 'firebase/database';
-import { Room, GameState, GameStatus, GameStep, Team, Transaction } from './types';
+import { Room, RoomListItem, GameState, GameStatus, GameStep, Team, Transaction } from './types';
 import { STOCK_DATA, INITIAL_SEED_MONEY } from './constants';
 
 // Firebase 설정
@@ -67,6 +67,64 @@ export const getFirebaseError = (): string | null => {
   return initError;
 };
 
+// ========== 서버 시간 & 타이머 ==========
+// 타이머는 종료 시각(timerEndAt)만 저장하고 각 화면이 남은 시간을 계산함
+// (1초마다 Firebase에 쓰지 않음). 기기별 시계 오차는 서버 시간 오프셋으로 보정.
+let serverTimeOffset = 0;
+if (database) {
+  onValue(ref(database, '.info/serverTimeOffset'), (snapshot) => {
+    serverTimeOffset = snapshot.val() || 0;
+  });
+}
+
+export const getServerNow = (): number => Date.now() + serverTimeOffset;
+
+// 현재 표시할 남은 시간(초)
+export const getRemainingSeconds = (
+  gameState: Pick<GameState, 'timerSeconds' | 'isTimerRunning' | 'timerEndAt'>,
+  now: number = getServerNow()
+): number => {
+  if (gameState.isTimerRunning && gameState.timerEndAt) {
+    return Math.max(0, Math.ceil((gameState.timerEndAt - now) / 1000));
+  }
+  return gameState.timerSeconds;
+};
+
+// 타이머 정지 시 저장할 필드 (남은 시간을 고정)
+export const pausedTimerFields = (gameState: GameState) => ({
+  isTimerRunning: false,
+  timerSeconds: getRemainingSeconds(gameState),
+  timerEndAt: null
+});
+
+// 타이머 시작/재개 시 저장할 필드
+export const runningTimerFields = (seconds: number) => ({
+  isTimerRunning: true,
+  timerSeconds: seconds,
+  timerEndAt: seconds > 0 ? getServerNow() + seconds * 1000 : null
+});
+
+// 타이머 만료 처리 (시간 종료 시 투자 잠금) - 같은 타이머에 대해 한 번만 적용됨
+export const expireTimer = async (roomId: string, timerEndAt: number): Promise<void> => {
+  if (!database) return;
+
+  try {
+    await runTransaction(ref(database, `rooms/${roomId}/gameState`), (currentData) => {
+      if (!currentData) return currentData;
+      if (!currentData.isTimerRunning || currentData.timerEndAt !== timerEndAt) return; // 이미 처리됨 → 중단
+      return {
+        ...currentData,
+        timerSeconds: 0,
+        timerEndAt: null,
+        isTimerRunning: false,
+        isInvestmentLocked: true
+      };
+    });
+  } catch (error) {
+    console.error('타이머 종료 처리 오류:', error);
+  }
+};
+
 // ========== 데이터 정규화 함수들 ==========
 // Firebase는 배열을 객체로 저장하므로, 읽을 때 다시 배열로 변환해야 함
 
@@ -113,6 +171,80 @@ const normalizeRoom = (room: any): Room => {
     ...room,
     gameState: normalizeGameState(room.gameState)
   };
+};
+
+// ========== 방 목록 인덱스 ==========
+// 방 목록 화면은 roomIndex/{roomId}의 요약 정보만 구독함
+// (rooms 전체를 구독하면 모든 방의 게임 데이터를 변경 때마다 다시 받게 됨)
+const toRoomIndexEntry = (room: any, roomId: string) => ({
+  id: roomId,
+  name: room?.name || '',
+  createdAt: room?.createdAt || 0,
+  totalTeams: room?.totalTeams || 0,
+  maxRounds: room?.maxRounds || 0,
+  isActive: !!room?.isActive,
+  currentStatus: room?.gameState?.currentStatus || GameStatus.READY
+});
+
+const fromRoomIndexEntry = (entry: any): RoomListItem => ({
+  id: entry.id,
+  name: entry.name,
+  createdAt: entry.createdAt,
+  totalTeams: entry.totalTeams,
+  maxRounds: entry.maxRounds,
+  isActive: !!entry.isActive,
+  gameState: { currentStatus: entry.currentStatus }
+});
+
+const toRoomListItem = (room: Room): RoomListItem => fromRoomIndexEntry(toRoomIndexEntry(room, room.id));
+
+// 인덱스가 없으면 기존 방들로 한 번만 생성. 사용할 수 없으면 false (기존 방식으로 동작)
+let roomIndexReady: Promise<boolean> | null = null;
+let roomIndexUnavailable = false; // 보안 규칙 등으로 거부되면 이후 인덱스 쓰기를 시도하지 않음
+const ensureRoomIndex = (): Promise<boolean> => {
+  if (!roomIndexReady) {
+    roomIndexReady = (async () => {
+      if (!database) return false;
+      try {
+        const meta = await get(ref(database, 'roomIndexMeta/version'));
+        if (meta.exists()) return true;
+
+        const roomsSnapshot = await get(ref(database, 'rooms'));
+        const updates: { [path: string]: any } = {};
+        if (roomsSnapshot.exists()) {
+          Object.entries(roomsSnapshot.val()).forEach(([roomId, room]) => {
+            updates[`roomIndex/${roomId}`] = toRoomIndexEntry(room, roomId);
+          });
+        }
+        updates['roomIndexMeta/version'] = 1;
+        updates['roomIndexMeta/builtAt'] = Date.now();
+        await update(ref(database), updates);
+        console.log('✅ 방 목록 인덱스 생성 완료');
+        return true;
+      } catch (error) {
+        console.warn('방 목록 인덱스를 사용할 수 없어 기존 방식으로 동작합니다:', error);
+        roomIndexUnavailable = true;
+        return false;
+      }
+    })();
+  }
+  return roomIndexReady;
+};
+
+// 인덱스 갱신 (실패해도 게임 진행에는 영향 없음)
+const updateRoomIndex = async (roomId: string, fields: { [key: string]: any } | null): Promise<void> => {
+  if (!database || roomIndexUnavailable) return;
+  try {
+    const indexRef = ref(database, `roomIndex/${roomId}`);
+    if (fields === null) {
+      await remove(indexRef);
+    } else {
+      await update(indexRef, fields);
+    }
+  } catch (error) {
+    console.warn('방 목록 인덱스 갱신 실패:', error);
+    roomIndexUnavailable = true;
+  }
 };
 
 // ========== 기본 GameState 생성 ==========
@@ -182,6 +314,7 @@ export const createRoom = async (
 
   const roomRef = ref(database, `rooms/${roomId}`);
   await set(roomRef, room);
+  await updateRoomIndex(roomId, toRoomIndexEntry(room, roomId));
 
   return room;
 };
@@ -232,6 +365,23 @@ export const getRoom = async (roomId: string): Promise<Room | null> => {
   }
 
   return null;
+};
+
+// ========== 방 존재/활성 여부만 확인 (전체 데이터를 받지 않음) ==========
+export const getRoomActiveState = async (roomId: string): Promise<'active' | 'inactive' | 'missing' | 'error'> => {
+  if (!database) {
+    console.error('Firebase가 초기화되지 않았습니다.');
+    return 'error';
+  }
+
+  try {
+    const snapshot = await get(ref(database, `rooms/${roomId}/isActive`));
+    if (!snapshot.exists()) return 'missing';
+    return snapshot.val() ? 'active' : 'inactive';
+  } catch (error) {
+    console.error('방 조회 오류:', error);
+    return 'error';
+  }
 };
 
 // ========== 방 실시간 구독 ==========
@@ -286,8 +436,9 @@ export const subscribeToRoom = (
 };
 
 // ========== 모든 방 실시간 구독 ==========
+// 방 목록 인덱스(요약 정보)를 구독. 인덱스를 쓸 수 없으면 기존 방식(rooms 전체 구독)으로 동작
 export const subscribeToRooms = (
-  callback: (rooms: Room[]) => void,
+  callback: (rooms: RoomListItem[]) => void,
   onError?: (error: Error) => void
 ): (() => void) => {
   if (!database) {
@@ -295,6 +446,52 @@ export const subscribeToRooms = (
     if (onError) {
       onError(new Error('Firebase가 초기화되지 않았습니다.'));
     }
+    callback([]);
+    return () => {};
+  }
+
+  let cancelled = false;
+  let unsubscribe: () => void = () => {};
+
+  const useFullRooms = () => {
+    if (cancelled) return;
+    unsubscribe = subscribeToFullRooms(callback, onError);
+  };
+
+  ensureRoomIndex().then((ready) => {
+    if (cancelled) return;
+    if (!ready) {
+      useFullRooms();
+      return;
+    }
+
+    unsubscribe = onValue(
+      ref(database!, 'roomIndex'),
+      (snapshot) => {
+        const rooms = snapshot.exists()
+          ? Object.values(snapshot.val()).map(fromRoomIndexEntry)
+          : [];
+        callback(rooms.filter(room => room.isActive));
+      },
+      (error) => {
+        console.warn('방 목록 인덱스 구독 실패, 기존 방식으로 전환:', error);
+        useFullRooms();
+      }
+    );
+  });
+
+  return () => {
+    cancelled = true;
+    unsubscribe();
+  };
+};
+
+// 기존 방식: rooms 전체 구독 (인덱스를 사용할 수 없을 때만)
+const subscribeToFullRooms = (
+  callback: (rooms: RoomListItem[]) => void,
+  onError?: (error: Error) => void
+): (() => void) => {
+  if (!database) {
     callback([]);
     return () => {};
   }
@@ -308,7 +505,7 @@ export const subscribeToRooms = (
           try {
             const data = snapshot.val();
             const rooms: Room[] = Object.values(data).map((room: any) => normalizeRoom(room));
-            callback(rooms.filter(room => room.isActive));
+            callback(rooms.filter(room => room.isActive).map(toRoomListItem));
           } catch (err) {
             console.error('방 목록 정규화 오류:', err);
             callback([]);
@@ -349,16 +546,102 @@ export const updateRoomGameState = async (
 
   try {
     const gameStateRef = ref(database, `rooms/${roomId}/gameState`);
+    let statusBefore: GameStatus | undefined;
+    let statusAfter: GameStatus | undefined;
 
-    await runTransaction(gameStateRef, (currentData) => {
+    const result = await runTransaction(gameStateRef, (currentData) => {
       if (!currentData) return currentData;
       const currentState = normalizeGameState(currentData);
-      return updater(currentState);
+      const nextState = updater(currentState);
+      statusBefore = currentState.currentStatus;
+      statusAfter = nextState.currentStatus;
+      return nextState;
     });
+
+    // 방 상태(대기중/진행중/종료됨)가 바뀌면 방 목록 인덱스에도 반영
+    if (result.committed && statusAfter && statusBefore !== statusAfter) {
+      await updateRoomIndex(roomId, { currentStatus: statusAfter });
+    }
 
     return true;
   } catch (error) {
     console.error('게임 상태 업데이트 오류:', error);
+    return false;
+  }
+};
+
+// ========== 방 GameState 일부 필드만 업데이트 ==========
+// 다른 값에 의존하지 않는 단순 변경(단계 전환, 결과 공개 등)은 바뀐 필드만 저장
+// (전체 gameState를 트랜잭션으로 다시 쓰지 않아 팀 거래와 충돌하지 않음)
+export const patchRoomGameState = async (
+  roomId: string,
+  fields: { [path: string]: any }
+): Promise<boolean> => {
+  if (!database) {
+    console.error('Firebase가 초기화되지 않았습니다.');
+    return false;
+  }
+
+  try {
+    // 빈 배열은 Firebase에서 null과 같음 (읽을 때 toArray로 []가 됨)
+    const normalizedFields = Object.fromEntries(
+      Object.entries(fields).map(([path, value]) => [path, Array.isArray(value) && value.length === 0 ? null : value])
+    );
+    await update(ref(database, `rooms/${roomId}/gameState`), normalizedFields);
+    if (fields.currentStatus) {
+      await updateRoomIndex(roomId, { currentStatus: fields.currentStatus });
+    }
+    return true;
+  } catch (error) {
+    console.error('게임 상태 업데이트 오류:', error);
+    return false;
+  }
+};
+
+// ========== 팀 정보 구매권 증감 (해당 팀 값만 트랜잭션) ==========
+export const adjustGrantedInfoCount = async (
+  roomId: string,
+  teamIndex: number,
+  delta: number
+): Promise<boolean> => {
+  if (!database) return false;
+
+  try {
+    await runTransaction(
+      ref(database, `rooms/${roomId}/gameState/teams/${teamIndex}/grantedInfoCount`),
+      (current) => Math.max(0, (current || 0) + delta)
+    );
+    return true;
+  } catch (error) {
+    console.error('정보 구매권 변경 오류:', error);
+    return false;
+  }
+};
+
+// ========== 정보 열람권 사용 (해당 팀만 트랜잭션) ==========
+export const redeemInfoTicket = async (
+  roomId: string,
+  teamIndex: number,
+  cardId: string
+): Promise<boolean> => {
+  if (!database) return false;
+
+  try {
+    const result = await runTransaction(
+      ref(database, `rooms/${roomId}/gameState/teams/${teamIndex}`),
+      (currentTeam) => {
+        if (!currentTeam) return currentTeam;
+        if ((currentTeam.grantedInfoCount || 0) <= 0) return; // 열람권 없음 → 중단
+        return {
+          ...currentTeam,
+          grantedInfoCount: currentTeam.grantedInfoCount - 1,
+          unlockedCards: [...toArray<string>(currentTeam.unlockedCards), cardId]
+        };
+      }
+    );
+    return result.committed;
+  } catch (error) {
+    console.error('정보 열람권 사용 오류:', error);
     return false;
   }
 };
@@ -373,6 +656,7 @@ export const deleteRoom = async (roomId: string): Promise<boolean> => {
   try {
     const roomRef = ref(database, `rooms/${roomId}/isActive`);
     await set(roomRef, false);
+    await updateRoomIndex(roomId, { isActive: false });
     return true;
   } catch (error) {
     console.error('방 삭제 오류:', error);
@@ -390,6 +674,7 @@ export const permanentlyDeleteRoom = async (roomId: string): Promise<boolean> =>
   try {
     const roomRef = ref(database, `rooms/${roomId}`);
     await remove(roomRef);
+    await updateRoomIndex(roomId, null);
     return true;
   } catch (error) {
     console.error('방 완전 삭제 오류:', error);
@@ -409,17 +694,18 @@ export const joinTeam = async (
   }
 
   try {
-    const room = await getRoom(roomId);
-    if (!room) {
-      console.error('방을 찾을 수 없습니다:', roomId);
-      return false;
+    // 팀은 생성 순서대로 저장되므로 보통 teams/{팀번호-1}. 번호만 읽어 확인하고, 다르면 전체 조회로 찾음
+    let teamIndex = teamNumber - 1;
+    const numberSnapshot = await get(ref(database, `rooms/${roomId}/gameState/teams/${teamIndex}/number`));
+
+    if (numberSnapshot.val() !== teamNumber) {
+      const room = await getRoom(roomId);
+      if (!room) {
+        console.error('방을 찾을 수 없습니다:', roomId);
+        return false;
+      }
+      teamIndex = room.gameState.teams.findIndex(t => t.number === teamNumber);
     }
-
-    // teams 배열에서 해당 팀 찾기
-    const teams = room.gameState.teams;
-    console.log('팀 목록:', teams.map(t => ({ id: t.id, number: t.number })));
-
-    const teamIndex = teams.findIndex(t => t.number === teamNumber);
     console.log(`팀 ${teamNumber} 찾기 결과: index=${teamIndex}`);
 
     if (teamIndex === -1) {
@@ -427,30 +713,23 @@ export const joinTeam = async (
       return false;
     }
 
-    const team = { ...teams[teamIndex] };
+    // 해당 팀만 트랜잭션으로 갱신 (여러 명이 동시에 입장해도 서로 덮어쓰지 않음)
+    const result = await runTransaction(
+      ref(database, `rooms/${roomId}/gameState/teams/${teamIndex}`),
+      (currentTeam) => {
+        if (!currentTeam) return currentTeam;
+        const members = toArray<string>(currentTeam.members);
+        return {
+          ...currentTeam,
+          // 리더가 없으면 리더로 설정
+          leaderName: currentTeam.leaderName || memberName,
+          // 멤버 목록에 추가
+          members: members.includes(memberName) ? members : [...members, memberName]
+        };
+      }
+    );
 
-    // 리더가 없으면 리더로 설정
-    if (!team.leaderName) {
-      team.leaderName = memberName;
-    }
-
-    // 멤버 목록에 추가
-    const members = [...(team.members || [])];
-    if (!members.includes(memberName)) {
-      members.push(memberName);
-    }
-    team.members = members;
-
-    const updatedTeam = team;
-    const success = await updateRoomGameState(roomId, (current) => ({
-      ...current,
-      teams: current.teams.map((t, i) => i === teamIndex ? {
-        ...t,
-        leaderName: updatedTeam.leaderName,
-        members: updatedTeam.members
-      } : t)
-    }));
-
+    const success = result.committed && result.snapshot.exists();
     if (success) {
       console.log(`✅ ${memberName}님이 Team ${teamNumber}에 입장했습니다.`);
     }
@@ -473,22 +752,8 @@ export const leaveTeam = async (
   }
 
   try {
-    const room = await getRoom(roomId);
-    if (!room) {
-      console.error('방을 찾을 수 없습니다:', roomId);
-      return false;
-    }
-
-    // teams 배열에서 해당 팀 찾기
-    const teams = room.gameState.teams;
-    const teamIndex = teams.findIndex(t => t.number === teamNumber);
-
-    if (teamIndex === -1) {
-      console.error('팀을 찾을 수 없습니다:', teamNumber);
-      return false;
-    }
-
     // 참고: 실제로 멤버를 제거하지는 않음 (게임 진행 중 데이터 유지)
+    // 그래서 방 데이터를 다시 읽지 않음
     // 필요시 여기서 멤버 제거 로직 추가 가능
     console.log(`사용자가 Team ${teamNumber}에서 퇴장했습니다.`);
 

@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Role, Room } from '../types';
+import { Role, RoomListItem } from '../types';
 import { ADMIN_PASSWORD } from '../constants';
 import { subscribeToRooms, isFirebaseReady, getFirebaseError } from '../firebase';
 
@@ -13,8 +13,8 @@ type LoginStep = 'select-mode' | 'select-room' | 'select-team' | 'admin-login';
 
 const Login: React.FC<LoginProps> = ({ onLogin, onAdminAccess }) => {
   const [step, setStep] = useState<LoginStep>('select-mode');
-  const [rooms, setRooms] = useState<Room[]>([]);
-  const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
+  const [rooms, setRooms] = useState<RoomListItem[]>([]);
+  const [selectedRoom, setSelectedRoom] = useState<RoomListItem | null>(null);
   const [userName, setUserName] = useState('');
   const [teamNum, setTeamNum] = useState(1);
   const [adminPassword, setAdminPassword] = useState('');
@@ -60,7 +60,7 @@ const Login: React.FC<LoginProps> = ({ onLogin, onAdminAccess }) => {
   }, []);
 
   // 방 선택
-  const handleSelectRoom = (room: Room) => {
+  const handleSelectRoom = (room: RoomListItem) => {
     setSelectedRoom(room);
     setTeamNum(1);
     setStep('select-team');

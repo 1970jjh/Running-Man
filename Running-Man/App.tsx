@@ -6,7 +6,7 @@ import AdminDashboard from './components/AdminDashboard';
 import UserDashboard from './components/UserDashboard';
 import Login from './components/Login';
 import FullScreenButton from './components/FullScreenButton';
-import { subscribeToRoom, updateRoomGameState, joinTeam, isFirebaseReady, getRoom, leaveTeam, executeTeamTrade, TradeRequest } from './firebase';
+import { subscribeToRoom, joinTeam, isFirebaseReady, getRoomActiveState, leaveTeam, executeTeamTrade, redeemInfoTicket, TradeRequest } from './firebase';
 
 type AppView = 'login' | 'admin' | 'user';
 
@@ -143,22 +143,6 @@ const App: React.FC = () => {
     return () => unsubscribe();
   }, [currentRoomId, view]);
 
-  // GameState 업데이트 함수 (Firebase와 동기화)
-  // 중요: 로컬 상태를 직접 업데이트하지 않고 Firebase만 업데이트
-  // Firebase 구독에서 상태 변경을 받아 처리하므로 race condition 방지
-  const handleSetGameState: React.Dispatch<React.SetStateAction<GameState>> = async (action) => {
-    if (!currentRoomId || !gameState) return;
-
-    const updater = typeof action === 'function'
-      ? (current: GameState) => (action as (prev: GameState) => GameState)(current)
-      : (_current: GameState) => action as GameState;
-
-    const success = await updateRoomGameState(currentRoomId, updater);
-    if (!success) {
-      console.error('Firebase 업데이트 실패');
-    }
-  };
-
   // 로그인 핸들러
   const handleLogin = async (
     selectedRole: Role,
@@ -175,15 +159,15 @@ const App: React.FC = () => {
       setJoinError(null);
 
       try {
-        // 먼저 방이 존재하는지 확인
-        const room = await getRoom(data.roomId);
-        if (!room) {
+        // 먼저 방이 존재하는지 확인 (활성 여부만 읽음)
+        const roomState = await getRoomActiveState(data.roomId);
+        if (roomState === 'missing' || roomState === 'error') {
           alert('방을 찾을 수 없습니다. 방이 삭제되었거나 유효하지 않습니다.');
           setIsJoining(false);
           return;
         }
 
-        if (!room.isActive) {
+        if (roomState === 'inactive') {
           alert('이 방은 더 이상 활성화되지 않았습니다.');
           setIsJoining(false);
           return;
@@ -240,6 +224,15 @@ const App: React.FC = () => {
     return executeTeamTrade({ ...trade, roomId: currentRoomId, teamIndex: myTeamIndex });
   }, [currentRoomId, myTeamIndex]);
 
+  // 정보 열람권 사용 (내 팀 데이터만 트랜잭션으로 갱신)
+  const handleRedeemInfo = useCallback(async (cardId: string) => {
+    if (!currentRoomId || myTeamIndex < 0) return;
+    const success = await redeemInfoTicket(currentRoomId, myTeamIndex, cardId);
+    if (!success) {
+      console.error('Firebase 업데이트 실패');
+    }
+  }, [currentRoomId, myTeamIndex]);
+
   return (
     <div className="min-h-screen text-white flex flex-col font-sans selection:bg-indigo-500/30">
       {/* 통합 배경 */}
@@ -263,7 +256,7 @@ const App: React.FC = () => {
         <UserDashboard
           gameState={gameState}
           myTeam={myTeam}
-          setGameState={handleSetGameState}
+          onRedeemInfo={handleRedeemInfo}
           onExitRequest={handleUserExitRequest}
           onTrade={handleTrade}
         />
