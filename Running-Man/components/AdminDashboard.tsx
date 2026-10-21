@@ -13,7 +13,7 @@ import {
   getServerNow,
   pausedTimerFields,
   runningTimerFields,
-  deleteRoom,
+  permanentlyDeleteRoom,
   createDefaultGameState,
   isFirebaseReady,
   getFirebaseError
@@ -37,6 +37,8 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
+  const [deleteTargetRoom, setDeleteTargetRoom] = useState<RoomListItem | null>(null);
+  const [isDeletingRoom, setIsDeletingRoom] = useState(false);
 
   // 방 생성 폼
   const [setupRoomName, setSetupRoomName] = useState('금융사관학교 1기');
@@ -176,10 +178,24 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
   const getTeamIndex = (teamId: string) => gameState ? gameState.teams.findIndex(t => t.id === teamId) : -1;
 
   // 방 삭제
-  const handleDeleteRoom = async (roomId: string) => {
-    if (confirm('정말로 이 방을 삭제하시겠습니까?')) {
-      await deleteRoom(roomId);
+  // 삭제 확인 팝업에서 '예(삭제)'를 누르면 방 데이터를 DB에서 완전히 삭제
+  const handleDeleteRoom = async () => {
+    if (!deleteTargetRoom || isDeletingRoom) return;
+
+    setIsDeletingRoom(true);
+    const success = await permanentlyDeleteRoom(deleteTargetRoom.id);
+    setIsDeletingRoom(false);
+
+    if (!success) {
+      alert('방 삭제에 실패했습니다. 잠시 후 다시 시도해주세요.');
+      return;
     }
+    if (deleteTargetRoom.id === selectedRoomId) {
+      setSelectedRoomId(null);
+      setSelectedRoom(null);
+      setGameState(null);
+    }
+    setDeleteTargetRoom(null);
   };
 
   // GameState 업데이트 (Firebase Transaction 기반)
@@ -598,7 +614,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
                         관리
                       </button>
                       <button
-                        onClick={() => handleDeleteRoom(room.id)}
+                        onClick={() => setDeleteTargetRoom(room)}
                         className="px-4 py-2 rounded-xl bg-rose-600/20 text-rose-400 font-bold hover:bg-rose-600/40 transition-colors"
                       >
                         삭제
@@ -611,6 +627,40 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onLogout }) => {
           </div>
           )}
         </div>
+
+        {/* 방 삭제 확인 팝업 */}
+        {deleteTargetRoom && (
+          <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+            <div className="iso-card bg-gradient-to-br from-slate-800 to-slate-900 rounded-3xl max-w-sm w-full p-8 text-center border border-slate-700/50 animate-fade-in-up">
+              <div className="w-16 h-16 mx-auto mb-4 bg-rose-500/20 rounded-full flex items-center justify-center">
+                <svg className="w-8 h-8 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                </svg>
+              </div>
+              <p className="text-sm font-bold text-slate-400 mb-2 truncate">{deleteTargetRoom.name}</p>
+              <h3 className="text-lg font-bold text-white mb-6 break-keep">
+                방을 삭제하면 게임 기록이 영구히 지워집니다.<br />삭제하시겠습니까?
+              </h3>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={handleDeleteRoom}
+                  disabled={isDeletingRoom}
+                  className="flex-1 py-3 rounded-xl bg-rose-600 text-white font-bold hover:bg-rose-500 transition-colors disabled:opacity-60"
+                >
+                  {isDeletingRoom ? '삭제 중...' : '예(삭제)'}
+                </button>
+                <button
+                  onClick={() => setDeleteTargetRoom(null)}
+                  disabled={isDeletingRoom}
+                  className="flex-1 py-3 rounded-xl bg-slate-700/50 text-white font-bold hover:bg-slate-600/50 transition-colors"
+                >
+                  아니오
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
